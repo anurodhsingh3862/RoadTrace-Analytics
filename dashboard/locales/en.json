@@ -53,5 +53,9 @@
   "subheader_speed_vs_weather": "Speed vs. weather, by hour",
   "caption_weather_sample_too_small": "Not enough hours with varying weather yet to say whether there's a real pattern here — this is just what was measured, side by side.",
   "text_percent_over_limit": "{percent}% of hours averaged above the posted limit ({avg} km/h measured vs. {limit} km/h posted)",
-  "text_no_risk_score": "This is not a crash-risk score — that would need real historical crash data for this exact road, which isn't available yet. These are just the measured facts, side by side."
+  "text_no_risk_score": "This is not a crash-risk score — that would need real historical crash data for this exact road, which isn't available yet. These are just the measured facts, side by side.",
+  "label_us_county_fips": "US county FIPS code (optional, 5 digits)",
+  "caption_us_county_fips": "US cameras only: look up your county's 5-digit FIPS code online (2-digit state + 3-digit county) to see fatal-crash counts on file for that county.",
+  "text_county_crashes": "NHTSA FARS: {count} fatal crashes on file for this county in {year}",
+  "text_county_crashes_unavailable": "No fatal-crash data available for this county/year yet."
 }

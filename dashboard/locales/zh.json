@@ -53,5 +53,9 @@
   "subheader_speed_vs_weather": "各小时车速与天气对比",
   "caption_weather_sample_too_small": "目前天气变化的小时数还不够,无法判断是否存在真实规律——这里仅并排展示已测得的数据。",
   "text_percent_over_limit": "{percent}% 的小时平均车速超过了限速({avg} 公里/小时实测 对比 {limit} 公里/小时限速)",
-  "text_no_risk_score": "这不是事故风险评分——那需要这条确切道路的真实历史事故数据,目前尚不可用。这里仅并排展示已测得的事实。"
+  "text_no_risk_score": "这不是事故风险评分——那需要这条确切道路的真实历史事故数据,目前尚不可用。这里仅并排展示已测得的事实。",
+  "label_us_county_fips": "美国县 FIPS 代码(可选,5位数字)",
+  "caption_us_county_fips": "仅限美国摄像头:请在线查询您所在县的5位 FIPS 代码(2位州代码 + 3位县代码),以查看该县已记录的致命车祸数量。",
+  "text_county_crashes": "NHTSA FARS:该县 {year} 年记录在案的致命车祸 {count} 起",
+  "text_county_crashes_unavailable": "该县/年份暂无致命车祸数据。"
 }

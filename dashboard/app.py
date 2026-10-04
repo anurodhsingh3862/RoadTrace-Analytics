@@ -16,7 +16,7 @@ from dashboard.aggregator import CameraRun, hourly_summary
 from dashboard.i18n import DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES, t
 from dashboard.pipeline import analyze_video
 from dashboard.units import DEFAULT_UNIT, SUPPORTED_UNITS, convert_speed, format_speed
-from data_layers import get_country_context, get_nearby_speed_limit
+from data_layers import get_country_context, get_county_fatal_crashes, get_nearby_speed_limit
 from data_layers.weather import get_hourly_weather, representative_conditions
 from dashboard.weather_correlation import has_enough_for_a_trend_note, speed_weather_table
 from dashboard.risk_context import build_risk_context
@@ -37,6 +37,11 @@ def _cached_speed_limit(latitude: float, longitude: float):
 @st.cache_data(ttl=3 * 3600, show_spinner=False)
 def _cached_weather(latitude: float, longitude: float, start, end):
     return get_hourly_weather(latitude, longitude, start, end)
+
+
+@st.cache_data(ttl=24 * 3600, show_spinner=False)
+def _cached_county_crash_stats(state_fips: str, county_fips: str, year: int):
+    return get_county_fatal_crashes(state_fips, county_fips, year)
 
 if "camera_runs" not in st.session_state:
     st.session_state.camera_runs: list[CameraRun] = []
@@ -89,12 +94,14 @@ with st.sidebar:
 
         st.caption(t("caption_location", lang))
         add_location = st.checkbox(t("checkbox_add_location", lang))
-        country_code = latitude = longitude = None
+        country_code = latitude = longitude = us_county_fips = None
         if add_location:
             country_code = st.text_input(t("label_country_code", lang), max_chars=2)
             loc_c1, loc_c2 = st.columns(2)
             latitude = loc_c1.number_input(t("label_latitude", lang), value=0.0, format="%.6f")
             longitude = loc_c2.number_input(t("label_longitude", lang), value=0.0, format="%.6f")
+            us_county_fips = st.text_input(t("label_us_county_fips", lang), max_chars=5)
+            st.caption(t("caption_us_county_fips", lang))
 
         submitted = st.form_submit_button(t("button_process", lang))
 
@@ -129,6 +136,7 @@ with st.sidebar:
                         country_iso2=(country_code or "").strip().upper() or None,
                         latitude=float(latitude) if add_location and latitude else None,
                         longitude=float(longitude) if add_location and longitude else None,
+                        us_county_fips=(us_county_fips or "").strip() or None,
                     ))
                     st.success(t("success_added", lang, name=label or video_file.name))
             Path(tmp_path).unlink(missing_ok=True)
@@ -161,7 +169,7 @@ kpi1.metric(t("metric_vehicles_tracked", lang), total_vehicles)
 kpi2.metric(t("metric_avg_speed", lang), avg_speed_display)
 kpi3.metric(t("metric_cameras", lang), len(runs))
 
-located_runs = [r for r in runs if r.country_iso2 or (r.latitude and r.longitude)]
+located_runs = [r for r in runs if r.country_iso2 or (r.latitude and r.longitude) or r.us_county_fips]
 if located_runs:
     st.subheader(t("subheader_road_safety_context", lang))
     for run in located_runs:
@@ -169,6 +177,7 @@ if located_runs:
             context = None
             speed_limit = None
             conditions = None
+            crash_stats = None
             if run.country_iso2:
                 context = _cached_country_context(run.country_iso2)
                 if context.world_bank:
@@ -204,8 +213,20 @@ if located_runs:
                 else:
                     st.caption(t("text_weather_unavailable", lang))
 
+            if run.us_county_fips and len(run.us_county_fips) == 5:
+                state_fips, county_fips = run.us_county_fips[:2], run.us_county_fips[2:]
+                crash_stats = _cached_county_crash_stats(state_fips, county_fips, run.started_at.year)
+                if crash_stats:
+                    st.write(t(
+                        "text_county_crashes", lang,
+                        count=crash_stats.fatal_crash_count, year=crash_stats.year,
+                    ))
+                else:
+                    st.caption(t("text_county_crashes_unavailable", lang))
+
             risk = build_risk_context(
                 run, summary, speed_limit=speed_limit, country_context=context, weather=conditions,
+                county_crash_stats=crash_stats,
             )
             if risk.percent_hours_over_limit is not None:
                 st.write(t(
