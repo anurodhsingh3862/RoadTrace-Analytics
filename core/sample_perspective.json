@@ -1,0 +1,9 @@
+{
+  "image_width": 3840,
+  "image_height": 2160,
+  "image_points": [[1252, 787], [2298, 803], [5039, 2159], [-550, 2159]],
+  "road_width_m": 25,
+  "road_length_m": 250,
+  "source_url": "https://blog.roboflow.com/estimate-speed-computer-vision/",
+  "notes": "Published approximate road geometry for the Roboflow vehicles.mp4 sample. Points are far-left, far-right, near-right, near-left. The near corners intentionally extend beyond the image. Distances have not been independently surveyed."
+}
