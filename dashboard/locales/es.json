@@ -35,5 +35,17 @@
   "subheader_hourly_summary": "Resumen por hora",
   "unavailable": "no disponible",
   "label_language": "Idioma",
-  "label_units": "Unidades de velocidad"
+  "label_units": "Unidades de velocidad",
+  "caption_location": "Opcional: país y coordenadas, para mostrar datos públicos de referencia sobre seguridad vial de este lugar.",
+  "checkbox_add_location": "Tengo información de ubicación",
+  "label_country_code": "Código de país (2 letras, ej. IN, US)",
+  "label_latitude": "Latitud",
+  "label_longitude": "Longitud",
+  "subheader_road_safety_context": "Contexto de seguridad vial",
+  "text_wb_rate": "Banco Mundial: {rate} muertes por cada 100,000 habitantes ({year})",
+  "text_who_rate": "OMS: {rate} muertes por cada 100,000 habitantes ({year})",
+  "text_no_country_data": "No se encontraron datos globales de referencia sobre seguridad vial para este país.",
+  "text_speed_limit": "Límite de velocidad cercano según OpenStreetMap: {limit} ({highway})",
+  "text_speed_limit_unknown": "No se encontró un límite de velocidad publicado en OpenStreetMap cerca de esta ubicación.",
+  "text_context_disclaimer": "Datos de referencia del país/la vía, no una predicción para esta cámara en particular."
 }
