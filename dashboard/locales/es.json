@@ -53,5 +53,9 @@
   "subheader_speed_vs_weather": "Velocidad vs. clima, por hora",
   "caption_weather_sample_too_small": "Todavía no hay suficientes horas con clima variado para decir si hay un patrón real — esto es solo lo medido, puesto uno junto al otro.",
   "text_percent_over_limit": "El {percent}% de las horas promedió por encima del límite publicado ({avg} km/h medidos frente a {limit} km/h publicados)",
-  "text_no_risk_score": "Esto no es una puntuación de riesgo de accidente — eso requeriría datos históricos reales de accidentes para esta vía exacta, que aún no están disponibles. Estos son solo los hechos medidos, uno junto al otro."
+  "text_no_risk_score": "Esto no es una puntuación de riesgo de accidente — eso requeriría datos históricos reales de accidentes para esta vía exacta, que aún no están disponibles. Estos son solo los hechos medidos, uno junto al otro.",
+  "label_us_county_fips": "Código FIPS del condado de EE. UU. (opcional, 5 dígitos)",
+  "caption_us_county_fips": "Solo cámaras en EE. UU.: busca en línea el código FIPS de 5 dígitos de tu condado (2 dígitos de estado + 3 de condado) para ver los choques fatales registrados en ese condado.",
+  "text_county_crashes": "NHTSA FARS: {count} choques fatales registrados en este condado en {year}",
+  "text_county_crashes_unavailable": "Aún no hay datos de choques fatales disponibles para este condado/año."
 }

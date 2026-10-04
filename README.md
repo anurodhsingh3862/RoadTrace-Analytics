@@ -87,8 +87,25 @@ score — that would need real historical crash data tied to the exact road,
 which no adapter here provides yet. Every number shown is something the
 platform measured or looked up, never estimated or invented.
 
+`data_layers/crash_data.py` adds the first real local-tier source: US
+county-level fatal-crash counts from NHTSA's FARS Crash API (free, no
+key). Add a county FIPS code when adding a US camera to see it. This is
+still county-wide, not road-specific, and FARS only records *fatal*
+crashes — the module docstring and dashboard both say so plainly. A true
+per-road risk model still needs a road-level dataset nothing here
+provides yet.
+
+## Installing it like an app
+
+`web/` is now an installable PWA: open it on a phone, and the browser
+should offer "Add to Home Screen" (or it'll appear automatically after a
+visit or two). Once installed, it works offline after the first load —
+the page, scripts, and whatever model/CDN files were already fetched are
+cached by a service worker (`web/sw.js`).
+
 ## What's next
 
-PWA packaging, and a local crash-data adapter (e.g. US NHTSA/FHWA) that
-would make an actual risk model possible for the first time. Full plan in
-`docs/roadmap.md`.
+Everything in the original roadmap has shipped at least a first version.
+See `docs/roadmap.md` for what's left to verify, extend, or revisit
+(UN/ITF/iRAP data layers, a road-level crash dataset, the permanent
+is-a.dev URL).

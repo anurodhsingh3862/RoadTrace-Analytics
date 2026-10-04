@@ -34,6 +34,9 @@ class CameraRun:
     country_iso2: str | None = None
     latitude: float | None = None
     longitude: float | None = None
+    # US-only: 2-digit state + 3-digit county FIPS code, for the NHTSA
+    # FARS county fatal-crash lookup (data_layers/crash_data.py).
+    us_county_fips: str | None = None
 
 
 def vehicle_directions(df: pd.DataFrame, labels: tuple[str, str]) -> pd.Series:

@@ -226,3 +226,16 @@ async function main() {
 }
 
 main().catch(() => setStatus("Something went wrong loading the model. Try reloading the page."));
+
+// PWA: lets the page be installed (Add to Home Screen) and reused offline
+// after the first successful load. Registration failing (e.g. serviceWorker
+// unsupported, or the page loaded over plain http) is not fatal — the app
+// still works online, it just won't be installable/offline-capable there.
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(() => {
+      // Intentionally silent: offline/installable support is a bonus,
+      // not a requirement for the page to function.
+    });
+  });
+}

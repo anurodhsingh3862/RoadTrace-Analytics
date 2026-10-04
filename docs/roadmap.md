@@ -77,29 +77,55 @@ than as one large change.
       the measured facts, arranged, with that limitation stated on
       screen every time. 15/15 new tests passing.
       **What a real risk model still needs and doesn't have:** historical
-      crash counts/locations for the exact road a camera watches. That's
-      the next item below, not something to approximate from the data
-      already on hand.
+      crash counts/locations for the exact road a camera watches — see
+      `data_layers/crash_data.py` below for the closest real
+      approximation available so far, and why it still isn't that.
+- [x] `web/manifest.json` + `web/sw.js` — PWA packaging for the on-device
+      page: installable ("Add to Home Screen") with an app icon, and
+      usable offline after the first successful load (the page, its
+      scripts, and whatever model/CDN files were already fetched are
+      cached by the service worker). Zero cost, no app-store account.
+      **Needs a real-phone check**, not just a syntax check: install it
+      from a phone browser, confirm the install prompt/icon appears, then
+      try opening it in airplane mode after one successful load.
+- [x] `data_layers/crash_data.py` — US county-level fatal-crash counts
+      from NHTSA's FARS Crash API (free, no key), wired into
+      `risk_context.py` and the dashboard via an optional 5-digit county
+      FIPS code on the camera form. This is the first real local-tier
+      crash-data source, but it does **not** make risk_context a true
+      risk model yet: FARS is county-wide, not road-specific, and only
+      records *fatal* crashes (a county with zero on file is "zero fatal
+      crashes on record", not "safe"). Both the module docstring and the
+      dashboard say this every time the number is shown.
+      **This is the least-verified adapter in the repo**: every live call
+      made to the CrashAPI during development (from the sandbox shell and
+      from the fetch tool used to verify the other adapters) was rejected
+      with HTTP 403 — the API's documentation page confirms it's real and
+      public, but its actual JSON shape was never directly observed.
+      Built defensively against NHTSA's documented FARS field-naming
+      conventions and tolerant of a couple of shape variants, but treat
+      it as unverified until you run `python -m data_layers.crash_data
+      <state_fips> <county_fips> <year>` on a machine with normal
+      internet access and sanity-check the count against NHTSA's own
+      published tables. 8/8 new tests (mocked HTTP) passing.
 
 ## Planned, in order
-1. **PWA deployment** — installable web app, phone camera access via the
-   browser's camera API, no app store, no install cost.
-2. **A local crash-data adapter** (e.g. US NHTSA/FHWA, or an equivalent
-   open dataset for other countries) — the missing piece that would let
-   `risk_context.py` graduate from "measured facts side by side" to an
-   actual, evidence-based risk estimate for a specific road. Until a
-   country has real crash data wired in, the dashboard keeps saying so
-   rather than estimating.
-3. **Remaining global/regional data-layer sources** — UN regional
+1. **A road-level crash dataset** — the actual remaining prerequisite for
+   `risk_context.py` to become a real risk model instead of "measured
+   facts side by side". FARS/county data is the ceiling for what a
+   free, no-key US source gives; a road-specific one (e.g. a state DOT's
+   open crash-location dataset) would need its own adapter, one state at
+   a time, same pattern as everything in `data_layers/`.
+2. **Remaining global/regional data-layer sources** — UN regional
    indicators, ITF/OECD reports, iRAP star ratings, following the same
    pattern as `data_layers/`.
-4. **Permanent free URL** — register a free is-a.dev subdomain (e.g.
+3. **Permanent free URL** — register a free is-a.dev subdomain (e.g.
    roadtrace.is-a.dev) pointing at the GitHub Pages deployment. Attempted
-   once; blocked by this environment's inability to fork/PR a third-party
-   GitHub repo through the API — needs a manual fork + PR from
-   github.com/is-a-dev/register via the browser (the `CNAME` file for it
-   is already sitting on the `gh-pages` branch, ready to go once the
-   subdomain is approved). Deferred at the user's request for now.
+   twice (API-based fork/PR, then a manual browser fork); both blocked —
+   this environment can't fork/PR a third-party GitHub repo via API, and
+   the manual browser fork errored out for the user. The `CNAME` file is
+   already sitting on the `gh-pages` branch, ready to go whenever this is
+   picked back up. Deferred at the user's request for now.
 
 ## Explicitly out of scope
 - No license plate recognition, vehicle registration lookup, or any
