@@ -5,25 +5,130 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RoadTrace Analytics — on-device</title>
   <style>
-    body { font-family: system-ui, sans-serif; margin: 0; padding: 16px; background: #0b1220; color: #e8edf5; }
-    h1 { font-size: 1.1rem; margin: 0 0 12px; }
-    #status { color: #9fb3c8; margin-bottom: 12px; min-height: 1.2em; }
-    .video-wrap { position: relative; width: 100%; max-width: 960px; }
-    video, #overlay { width: 100%; display: block; border-radius: 8px; }
-    #overlay { position: absolute; top: 0; left: 0; pointer-events: none; }
-    fieldset { border: 1px solid #28344a; border-radius: 8px; margin-top: 16px; max-width: 480px; }
-    label { display: block; margin: 6px 0 2px; font-size: 0.85rem; }
-    input { width: 100%; box-sizing: border-box; padding: 4px; }
-    button { margin-top: 8px; padding: 8px 12px; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, sans-serif;
+      margin: 0;
+      padding: 16px;
+      background: #0b1220;
+      color: #e8edf5;
+    }
+    h1 { font-size: 1.2rem; margin: 0 0 4px; }
+    .subtitle { color: #9fb3c8; margin: 0 0 16px; font-size: 0.95rem; }
+    #status {
+      color: #bfe3ff;
+      background: #10203a;
+      border-radius: 8px;
+      padding: 8px 12px;
+      margin-bottom: 16px;
+      min-height: 1.2em;
+      font-size: 0.95rem;
+    }
+    .card {
+      border: 1px solid #28344a;
+      border-radius: 10px;
+      padding: 14px;
+      margin-bottom: 16px;
+      max-width: 960px;
+      background: #0f1a2e;
+    }
+    .card h2 {
+      font-size: 1rem;
+      margin: 0 0 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .step-num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #00d2ff;
+      color: #06121f;
+      font-weight: bold;
+      font-size: 0.85rem;
+      flex: none;
+    }
+    .card p { margin: 4px 0 10px; color: #c4d2e3; font-size: 0.9rem; }
+    .big-button {
+      font-size: 1rem;
+      padding: 12px 18px;
+      border-radius: 8px;
+      border: none;
+      background: #00d2ff;
+      color: #06121f;
+      font-weight: 600;
+      cursor: pointer;
+      margin: 4px 8px 4px 0;
+    }
+    .big-button.secondary {
+      background: #1c2a42;
+      color: #e8edf5;
+      border: 1px solid #3a4a68;
+    }
+    .big-button:active { transform: scale(0.98); }
+    .video-wrap {
+      position: relative;
+      width: 100%;
+      max-width: 960px;
+      margin-bottom: 16px;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    video, #overlay { width: 100%; display: block; }
+    #overlay { position: absolute; top: 0; left: 0; }
+    #overlay.pickable { cursor: crosshair; }
+    .chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+    .chip {
+      padding: 8px 14px;
+      border-radius: 999px;
+      border: 1px solid #3a4a68;
+      background: #15223a;
+      color: #e8edf5;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+    .chip:hover { background: #1c2a42; }
+    .custom-distance { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+    .custom-distance input {
+      width: 90px;
+      padding: 8px;
+      border-radius: 6px;
+      border: 1px solid #3a4a68;
+      background: #0b1220;
+      color: #e8edf5;
+    }
+    #calib-hint { font-size: 0.85rem; color: #ffd27a; min-height: 1.2em; }
+    details { margin-top: 12px; }
+    summary { cursor: pointer; color: #9fb3c8; font-size: 0.85rem; }
+    .advanced-grid label { display: block; margin: 6px 0 2px; font-size: 0.8rem; color: #9fb3c8; }
+    .advanced-grid input {
+      width: 100%;
+      padding: 6px;
+      border-radius: 6px;
+      border: 1px solid #3a4a68;
+      background: #0b1220;
+      color: #e8edf5;
+    }
   </style>
 </head>
 <body>
-  <h1>RoadTrace Analytics — runs entirely in this browser tab, nothing uploaded</h1>
+  <h1>🚗 RoadTrace Analytics</h1>
+  <p class="subtitle">
+    Point your camera at a road. It counts vehicles and guesses their speed —
+    all on this device. Nothing is uploaded anywhere.
+  </p>
   <p id="status">Loading...</p>
 
-  <div>
-    <input type="file" id="file-input" accept="video/*" />
-    <button id="camera-button" type="button">Use camera</button>
+  <div class="card">
+    <h2><span class="step-num">1</span> Start watching traffic</h2>
+    <p>Use your camera, or upload a video you already have.</p>
+    <button id="camera-button" class="big-button" type="button">📷 Use my camera</button>
+    <button id="file-button" class="big-button secondary" type="button">🎬 Upload a video</button>
+    <input type="file" id="file-input" accept="video/*" style="display:none" />
   </div>
 
   <div class="video-wrap">
@@ -31,25 +136,66 @@
     <canvas id="overlay"></canvas>
   </div>
 
-  <fieldset>
-    <legend>Speed calibration (optional, two points of known real-world distance)</legend>
-    <form id="calibration-form">
-      <label>Point 1 x, y (pixels)</label>
-      <div style="display:flex; gap:4px;">
-        <input name="p1x" type="number" value="0" />
-        <input name="p1y" type="number" value="0" />
-      </div>
-      <label>Point 2 x, y (pixels)</label>
-      <div style="display:flex; gap:4px;">
-        <input name="p2x" type="number" value="100" />
-        <input name="p2y" type="number" value="0" />
-      </div>
-      <label>Real-world distance between the points (meters)</label>
-      <input name="distance" type="number" value="10" step="0.1" />
-      <button type="submit">Set calibration</button>
-    </form>
-  </fieldset>
+  <div class="card">
+    <h2><span class="step-num">2</span> Measure speed (optional)</h2>
+    <p>
+      Pick two spots in the video where you know the real distance between
+      them — like two lamp posts, or the width of a parking space. You'll
+      still see boxes around every vehicle even if you skip this step; you
+      just won't see a speed number.
+    </p>
+    <button id="calibrate-button" class="big-button" type="button">📏 Tap two spots</button>
+    <button id="skip-calibrate-button" class="big-button secondary" type="button">Skip — no speed needed</button>
+    <p id="calib-hint"></p>
 
+    <div id="distance-picker" style="display:none;">
+      <p style="margin-top:14px;">How far apart are those two spots, really?</p>
+      <div class="chip-row">
+        <button class="chip" type="button" data-meters="3">3 m (a parked car)</button>
+        <button class="chip" type="button" data-meters="5">5 m</button>
+        <button class="chip" type="button" data-meters="10">10 m</button>
+        <button class="chip" type="button" data-meters="20">20 m</button>
+      </div>
+      <div class="custom-distance">
+        <input id="custom-distance" type="number" min="0.1" step="0.1" placeholder="other" />
+        <span>meters</span>
+        <button id="custom-distance-set" class="big-button secondary" type="button">Set</button>
+      </div>
+    </div>
+
+    <details>
+      <summary>Advanced: type exact pixel coordinates instead</summary>
+      <form id="calibration-form" class="advanced-grid">
+        <label>Point 1 x, y (pixels)</label>
+        <div style="display:flex; gap:4px;">
+          <input name="p1x" type="number" value="0" />
+          <input name="p1y" type="number" value="0" />
+        </div>
+        <label>Point 2 x, y (pixels)</label>
+        <div style="display:flex; gap:4px;">
+          <input name="p2x" type="number" value="100" />
+          <input name="p2y" type="number" value="0" />
+        </div>
+        <label>Real-world distance between the points (meters)</label>
+        <input name="distance" type="number" value="10" step="0.1" />
+        <button type="submit" class="big-button secondary" style="margin-top:10px;">Set calibration</button>
+      </form>
+    </details>
+  </div>
+
+  <!--
+    Bare "onnxruntime-web" import resolved via CDN, since this page has no
+    build step (npm install is for local dev/testing only, see
+    web/README.md). Pinned to the exact version web/package.json resolves,
+    so what's tested locally matches what loads here.
+  -->
+  <script type="importmap">
+  {
+    "imports": {
+      "onnxruntime-web": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/ort.wasm.min.mjs"
+    }
+  }
+  </script>
   <script type="module" src="src/app.js"></script>
 </body>
 </html>

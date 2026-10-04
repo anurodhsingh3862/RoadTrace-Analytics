@@ -7,6 +7,11 @@
 import * as ort from "onnxruntime-web";
 import { postprocess, MODEL_INPUT_SIZE } from "./postprocess.js";
 
+// Explicit, so the .wasm binary loads from the same pinned CDN version
+// regardless of what path this page is served from (GitHub Pages serves
+// this repo under a /RoadTrace-Analytics/ subpath, for one).
+ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/";
+
 export class VehicleDetector {
   constructor() {
     this.session = null;
