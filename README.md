@@ -66,7 +66,17 @@ country-level sources are shown side by side rather than blended into one
 number. See the module docstrings in `data_layers/` for exactly which
 indicators are used and how each was verified.
 
+## Weather
+
+`data_layers/weather.py` pulls hourly weather (temperature, precipitation,
+wind) for a camera's location and recording window from Open-Meteo (free,
+no key). The dashboard shows conditions during each located camera's
+recording, plus a small speed-vs-weather table by hour across cameras —
+shown as measurements side by side, not a claimed correlation; a single
+short video rarely has enough weather variation to say anything
+statistically meaningful, and the dashboard says so when that's the case.
+
 ## What's next
 
-PWA packaging, weather correlation, and risk modeling (only where real
-historical data supports it). Full plan in `docs/roadmap.md`.
+PWA packaging and risk modeling (only where real historical crash data
+supports it). Full plan in `docs/roadmap.md`.

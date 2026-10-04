@@ -47,5 +47,9 @@
   "text_no_country_data": "No global road-safety reference data found for this country.",
   "text_speed_limit": "OpenStreetMap posted speed limit nearby: {limit} ({highway})",
   "text_speed_limit_unknown": "No posted speed limit found on OpenStreetMap near this location.",
-  "text_context_disclaimer": "Reference data for the country/road, not a prediction for this specific camera."
+  "text_context_disclaimer": "Reference data for the country/road, not a prediction for this specific camera.",
+  "text_weather": "Weather during recording: {temp}°C, {precip} mm precipitation, {wind} km/h wind",
+  "text_weather_unavailable": "No weather data available for this time and location yet.",
+  "subheader_speed_vs_weather": "Speed vs. weather, by hour",
+  "caption_weather_sample_too_small": "Not enough hours with varying weather yet to say whether there's a real pattern here — this is just what was measured, side by side."
 }

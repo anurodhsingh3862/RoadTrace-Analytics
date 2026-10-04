@@ -52,21 +52,39 @@ than as one large change.
       Not yet included: UN regional indicators, ITF/OECD reports, iRAP
       star ratings, and a country-specific local adapter beyond OSM (e.g.
       US NHTSA/FHWA) — same pattern, left for a follow-up PR if useful.
+- [x] `data_layers/weather.py` + `dashboard/weather_correlation.py` —
+      hourly weather (temperature, precipitation, wind) from Open-Meteo
+      for a camera's location and recording window, shown per camera, plus
+      a speed-vs-weather table joined by hour across located cameras.
+      Deliberately not a correlation coefficient: a single recording
+      rarely spans enough distinct weather to support one, so this shows
+      the raw side-by-side numbers and a plain caption when the sample is
+      too small to suggest a pattern, rather than computing a statistic
+      that would overstate what a few data points can tell you.
+      Not live-verified from the dev sandbox (Open-Meteo's hosts are
+      blocked by both the shell network policy and robots.txt for the
+      fetch tool used during development); built against its long-stable
+      documented schema instead — confirm with `python -m data_layers.weather
+      <lat> <lon> <YYYY-MM-DD>` before trusting it. 13/13 new tests
+      (mocked HTTP) passing.
 
 ## Planned, in order
 1. **PWA deployment** — installable web app, phone camera access via the
    browser's camera API, no app store, no install cost.
-2. **Weather integration** — pull historical/live conditions for a
-   camera's location from a free weather API (Open-Meteo, no key
-   required); correlate the platform's own measured speeds against
-   conditions over time.
-3. **Risk modeling** — only where real historical crash + speed + weather
+2. **Risk modeling** — only where real historical crash + speed + weather
    data exists for a given road. Where it doesn't, the dashboard says so
    plainly rather than guessing. No invented probabilities.
-4. **Remaining data-layer sources** — UN regional indicators, ITF/OECD
+3. **Remaining data-layer sources** — UN regional indicators, ITF/OECD
    reports, iRAP star ratings, and additional country-specific local
    adapters beyond OpenStreetMap, following the same pattern as
    `data_layers/`.
+4. **Permanent free URL** — register a free is-a.dev subdomain (e.g.
+   roadtrace.is-a.dev) pointing at the GitHub Pages deployment. Attempted
+   once; blocked by this environment's inability to fork/PR a third-party
+   GitHub repo through the API — needs a manual fork + PR from
+   github.com/is-a-dev/register via the browser (the `CNAME` file for it
+   is already sitting on the `gh-pages` branch, ready to go once the
+   subdomain is approved).
 
 ## Explicitly out of scope
 - No license plate recognition, vehicle registration lookup, or any

@@ -47,5 +47,9 @@
   "text_no_country_data": "未找到该国家的全球道路安全参考数据。",
   "text_speed_limit": "OpenStreetMap 显示附近限速:{limit}({highway})",
   "text_speed_limit_unknown": "在此位置附近未在 OpenStreetMap 上找到限速标识。",
-  "text_context_disclaimer": "这是国家/道路层面的参考数据,并非针对此摄像头的预测。"
+  "text_context_disclaimer": "这是国家/道路层面的参考数据,并非针对此摄像头的预测。",
+  "text_weather": "录制期间天气:{temp}°C,降水 {precip} 毫米,风速 {wind} 公里/小时",
+  "text_weather_unavailable": "该时间和地点暂无天气数据。",
+  "subheader_speed_vs_weather": "各小时车速与天气对比",
+  "caption_weather_sample_too_small": "目前天气变化的小时数还不够,无法判断是否存在真实规律——这里仅并排展示已测得的数据。"
 }
