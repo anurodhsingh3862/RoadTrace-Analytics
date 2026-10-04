@@ -19,6 +19,7 @@ from dashboard.units import DEFAULT_UNIT, SUPPORTED_UNITS, convert_speed, format
 from data_layers import get_country_context, get_nearby_speed_limit
 from data_layers.weather import get_hourly_weather, representative_conditions
 from dashboard.weather_correlation import has_enough_for_a_trend_note, speed_weather_table
+from dashboard.risk_context import build_risk_context
 
 st.set_page_config(page_title="RoadTrace Analytics", layout="wide")
 
@@ -165,6 +166,9 @@ if located_runs:
     st.subheader(t("subheader_road_safety_context", lang))
     for run in located_runs:
         with st.expander(run.label):
+            context = None
+            speed_limit = None
+            conditions = None
             if run.country_iso2:
                 context = _cached_country_context(run.country_iso2)
                 if context.world_bank:
@@ -199,7 +203,18 @@ if located_runs:
                     ))
                 else:
                     st.caption(t("text_weather_unavailable", lang))
+
+            risk = build_risk_context(
+                run, summary, speed_limit=speed_limit, country_context=context, weather=conditions,
+            )
+            if risk.percent_hours_over_limit is not None:
+                st.write(t(
+                    "text_percent_over_limit", lang,
+                    percent=round(risk.percent_hours_over_limit),
+                    avg=round(risk.avg_speed_kmh), limit=round(risk.posted_limit_kmh),
+                ))
             st.caption(t("text_context_disclaimer", lang))
+            st.caption(t("text_no_risk_score", lang))
 
 located_with_coords = [r for r in runs if r.latitude and r.longitude]
 if located_with_coords:

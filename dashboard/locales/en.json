@@ -51,5 +51,7 @@
   "text_weather": "Weather during recording: {temp}°C, {precip} mm precipitation, {wind} km/h wind",
   "text_weather_unavailable": "No weather data available for this time and location yet.",
   "subheader_speed_vs_weather": "Speed vs. weather, by hour",
-  "caption_weather_sample_too_small": "Not enough hours with varying weather yet to say whether there's a real pattern here — this is just what was measured, side by side."
+  "caption_weather_sample_too_small": "Not enough hours with varying weather yet to say whether there's a real pattern here — this is just what was measured, side by side.",
+  "text_percent_over_limit": "{percent}% of hours averaged above the posted limit ({avg} km/h measured vs. {limit} km/h posted)",
+  "text_no_risk_score": "This is not a crash-risk score — that would need real historical crash data for this exact road, which isn't available yet. These are just the measured facts, side by side."
 }

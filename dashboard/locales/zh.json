@@ -51,5 +51,7 @@
   "text_weather": "录制期间天气:{temp}°C,降水 {precip} 毫米,风速 {wind} 公里/小时",
   "text_weather_unavailable": "该时间和地点暂无天气数据。",
   "subheader_speed_vs_weather": "各小时车速与天气对比",
-  "caption_weather_sample_too_small": "目前天气变化的小时数还不够,无法判断是否存在真实规律——这里仅并排展示已测得的数据。"
+  "caption_weather_sample_too_small": "目前天气变化的小时数还不够,无法判断是否存在真实规律——这里仅并排展示已测得的数据。",
+  "text_percent_over_limit": "{percent}% 的小时平均车速超过了限速({avg} 公里/小时实测 对比 {limit} 公里/小时限速)",
+  "text_no_risk_score": "这不是事故风险评分——那需要这条确切道路的真实历史事故数据,目前尚不可用。这里仅并排展示已测得的事实。"
 }

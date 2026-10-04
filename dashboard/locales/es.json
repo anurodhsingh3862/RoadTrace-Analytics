@@ -51,5 +51,7 @@
   "text_weather": "Clima durante la grabación: {temp}°C, {precip} mm de precipitación, {wind} km/h de viento",
   "text_weather_unavailable": "Aún no hay datos del clima disponibles para esta hora y ubicación.",
   "subheader_speed_vs_weather": "Velocidad vs. clima, por hora",
-  "caption_weather_sample_too_small": "Todavía no hay suficientes horas con clima variado para decir si hay un patrón real — esto es solo lo medido, puesto uno junto al otro."
+  "caption_weather_sample_too_small": "Todavía no hay suficientes horas con clima variado para decir si hay un patrón real — esto es solo lo medido, puesto uno junto al otro.",
+  "text_percent_over_limit": "El {percent}% de las horas promedió por encima del límite publicado ({avg} km/h medidos frente a {limit} km/h publicados)",
+  "text_no_risk_score": "Esto no es una puntuación de riesgo de accidente — eso requeriría datos históricos reales de accidentes para esta vía exacta, que aún no están disponibles. Estos son solo los hechos medidos, uno junto al otro."
 }
