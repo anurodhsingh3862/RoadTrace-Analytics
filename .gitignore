@@ -1,0 +1,21 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.env.*
+.DS_Store
+*.pt
+.pytest_cache/
+
+# Keep the exact sample fixture; ignore additional local videos.
+input/*
+!input/.gitkeep
+!input/traffic.mp4
+
+# Saved presentation results live in demo/ and are tracked.
+output/*
+!output/.gitkeep
+output-calibrated/
+output-perspective-mph/
+runs/
