@@ -22,15 +22,22 @@ than as one large change.
       work entirely in mph internally). Translations cover standard UI
       vocabulary; worth a native-speaker pass before any public launch.
       15/15 new tests passing (51/51 total).
+- [x] `web/` — on-device detection: a static page running YOLO11n (exported
+      to ONNX; already the nano/smallest variant, so "lite model" turned out
+      to mean exporting it for the browser, not picking a smaller one),
+      onnxruntime-web, and a from-scratch IoU tracker and two-point speed
+      estimator, all client-side via WebAssembly. No server, no upload.
+      22/22 new tests (Node's built-in test runner, pure-logic modules
+      only — see web/README.md for what's not covered and needs a real
+      browser to verify). 73/73 total passing across the whole repo.
+      Known gaps versus core/: simpler tracker (more ID switches
+      expected), two-point calibration only, non-letterboxed resize. Not
+      yet deployed anywhere.
 
 ## Planned, in order
-1. **On-device inference** — swap YOLO11n for a nano-sized model that runs
-   in-browser (TensorFlow.js/ONNX), so the public version needs no server
-   and stays free at any scale. Accuracy tradeoff gets measured and
-   reported, not hidden.
-2. **PWA deployment** — installable web app, phone camera access via the
+1. **PWA deployment** — installable web app, phone camera access via the
    browser's camera API, no app store, no install cost.
-3. **Universal data layers**, pluggable per country/region:
+2. **Universal data layers**, pluggable per country/region:
    - Global tier (always available): WHO Global Status Report on Road
      Safety, UN regional road-safety indicators, ITF/OECD road safety
      reports, World Bank road safety indicators — country-level context.
@@ -39,10 +46,10 @@ than as one large change.
      adapter (NHTSA/FHWA — AADT, crash data).
    - OpenStreetMap, everywhere: posted speed limit and road classification
      for the exact road a camera is watching.
-4. **Weather integration** — pull live conditions for the camera's
+3. **Weather integration** — pull live conditions for the camera's
    location from a free weather API; correlate the platform's own measured
    speeds against conditions over time.
-5. **Risk modeling** — only where real historical crash + speed + weather
+4. **Risk modeling** — only where real historical crash + speed + weather
    data exists for a given road. Where it doesn't, the dashboard says so
    plainly rather than guessing. No invented probabilities.
 

@@ -47,7 +47,14 @@ streamlit run dashboard/app.py
 
 Deployable free on Streamlit Community Cloud. Not yet deployed anywhere.
 
+## On-device (web)
+
+`web/` is a static page that runs detection, tracking, and speed
+estimation entirely in the browser, on the viewer's own device, no server
+and no upload. See `web/README.md` for setup and honest limitations versus
+`core/` and `dashboard/`.
+
 ## What's next
 
-Multi-language UI, on-device inference for phone browsers, and pluggable
-global/regional/local road-safety data. Full plan in `docs/roadmap.md`.
+PWA packaging and pluggable global/regional/local road-safety data. Full
+plan in `docs/roadmap.md`.

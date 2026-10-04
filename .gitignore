@@ -19,3 +19,9 @@ output/*
 output-calibrated/
 output-perspective-mph/
 runs/
+
+# web/: dependencies and the exported model (regenerate via
+# scripts/export_onnx.py; see web/README.md). package-lock.json is tracked.
+web/node_modules/
+web/models/
+*.onnx

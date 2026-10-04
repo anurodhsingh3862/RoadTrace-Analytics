@@ -1,0 +1,13 @@
+{
+  "name": "roadtrace-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "In-browser vehicle detection, tracking, and speed estimation. Static site, no server, no build step.",
+  "scripts": {
+    "test": "node --test src/*.test.js"
+  },
+  "dependencies": {
+    "onnxruntime-web": "^1.19.0"
+  }
+}
