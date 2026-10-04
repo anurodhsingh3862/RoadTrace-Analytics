@@ -13,43 +13,65 @@ import streamlit as st
 
 from core.speed_estimator import Calibration
 from dashboard.aggregator import CameraRun, hourly_summary
+from dashboard.i18n import DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES, t
 from dashboard.pipeline import analyze_video
+from dashboard.units import DEFAULT_UNIT, SUPPORTED_UNITS, convert_speed, format_speed
 
 st.set_page_config(page_title="RoadTrace Analytics", layout="wide")
 
 if "camera_runs" not in st.session_state:
     st.session_state.camera_runs: list[CameraRun] = []
+if "language" not in st.session_state:
+    st.session_state.language = DEFAULT_LANGUAGE
+if "unit" not in st.session_state:
+    st.session_state.unit = DEFAULT_UNIT
 
-st.title("RoadTrace Analytics")
-st.caption(
-    "Vehicle counts, speed, and direction from traffic video. "
-    "No plates, no identity data, no registration lookups."
-)
+top_left, top_right = st.columns([5, 2])
+with top_right:
+    lang_col, unit_col = st.columns(2)
+    st.session_state.language = lang_col.selectbox(
+        t("label_language", st.session_state.language),
+        options=list(SUPPORTED_LANGUAGES),
+        format_func=lambda code: SUPPORTED_LANGUAGES[code],
+        index=list(SUPPORTED_LANGUAGES).index(st.session_state.language),
+    )
+    st.session_state.unit = unit_col.selectbox(
+        t("label_units", st.session_state.language),
+        options=SUPPORTED_UNITS,
+        index=SUPPORTED_UNITS.index(st.session_state.unit),
+    )
+
+lang = st.session_state.language
+unit = st.session_state.unit
+
+with top_left:
+    st.title(t("app_title", lang))
+    st.caption(t("app_caption", lang))
 
 with st.sidebar:
-    st.header("Add a camera")
+    st.header(t("sidebar_header", lang))
     with st.form("add_camera", clear_on_submit=True):
-        label = st.text_input("Camera label", placeholder="e.g. Main St at 5th")
-        video_file = st.file_uploader("Video file", type=["mp4", "mov", "avi", "mkv"])
-        st.caption("Speed needs calibration: two points a known real-world distance apart.")
-        calibrate = st.checkbox("I have calibration measurements")
+        label = st.text_input(t("label_camera_label", lang), placeholder=t("placeholder_camera_label", lang))
+        video_file = st.file_uploader(t("label_video_file", lang), type=["mp4", "mov", "avi", "mkv"])
+        st.caption(t("caption_calibration", lang))
+        calibrate = st.checkbox(t("checkbox_calibrate", lang))
         point1_x = point1_y = point2_x = point2_y = distance_m = None
         if calibrate:
             c1, c2 = st.columns(2)
-            point1_x = c1.number_input("Point 1 x (px)", min_value=0, value=0)
-            point1_y = c2.number_input("Point 1 y (px)", min_value=0, value=0)
-            point2_x = c1.number_input("Point 2 x (px)", min_value=0, value=100)
-            point2_y = c2.number_input("Point 2 y (px)", min_value=0, value=0)
-            distance_m = st.number_input("Real-world distance between the points (m)", min_value=0.1, value=10.0)
-        dir_a = st.text_input("Direction A label", value="direction A")
-        dir_b = st.text_input("Direction B label", value="direction B")
-        started_date = st.date_input("Recording start date", value=datetime.now().date())
-        started_time = st.time_input("Recording start time", value=datetime.now().time())
-        submitted = st.form_submit_button("Process camera")
+            point1_x = c1.number_input(t("label_point1_x", lang), min_value=0, value=0)
+            point1_y = c2.number_input(t("label_point1_y", lang), min_value=0, value=0)
+            point2_x = c1.number_input(t("label_point2_x", lang), min_value=0, value=100)
+            point2_y = c2.number_input(t("label_point2_y", lang), min_value=0, value=0)
+            distance_m = st.number_input(t("label_distance_m", lang), min_value=0.1, value=10.0)
+        dir_a = st.text_input(t("label_dir_a", lang), value="direction A")
+        dir_b = st.text_input(t("label_dir_b", lang), value="direction B")
+        started_date = st.date_input(t("label_start_date", lang), value=datetime.now().date())
+        started_time = st.time_input(t("label_start_time", lang), value=datetime.now().time())
+        submitted = st.form_submit_button(t("button_process", lang))
 
     if submitted:
         if not video_file:
-            st.error("Attach a video file first.")
+            st.error(t("error_no_video", lang))
         else:
             calibration = None
             if calibrate:
@@ -61,11 +83,11 @@ with st.sidebar:
             with NamedTemporaryFile(suffix=Path(video_file.name).suffix, delete=False) as tmp:
                 tmp.write(video_file.read())
                 tmp_path = tmp.name
-            with st.spinner(f"Processing {label or video_file.name}..."):
+            with st.spinner(t("spinner_processing", lang, name=label or video_file.name)):
                 try:
                     analytics = analyze_video(tmp_path, calibration=calibration)
                 except (OSError, ValueError, RuntimeError) as exc:
-                    st.error(f"Could not process this video: {exc}")
+                    st.error(t("error_processing", lang, error=exc))
                 else:
                     camera_id = f"cam-{len(st.session_state.camera_runs) + 1}"
                     started_at = datetime.combine(started_date, started_time)
@@ -76,57 +98,66 @@ with st.sidebar:
                         analytics=analytics,
                         direction_labels=(dir_a or "direction A", dir_b or "direction B"),
                     ))
-                    st.success(f"Added {label or video_file.name}.")
+                    st.success(t("success_added", lang, name=label or video_file.name))
             Path(tmp_path).unlink(missing_ok=True)
 
     if st.session_state.camera_runs:
         st.divider()
-        st.subheader("Cameras")
+        st.subheader(t("subheader_cameras", lang))
         for i, run in enumerate(st.session_state.camera_runs):
             cols = st.columns([4, 1])
             cols[0].write(f"**{run.label}** — {run.started_at:%Y-%m-%d %H:%M}")
-            if cols[1].button("Remove", key=f"remove-{i}"):
+            if cols[1].button(t("button_remove", lang), key=f"remove-{i}"):
                 st.session_state.camera_runs.pop(i)
                 st.rerun()
 
 runs = st.session_state.camera_runs
 if not runs:
-    st.info("Add a camera in the sidebar to see the dashboard.")
+    st.info(t("info_add_camera", lang))
     st.stop()
 
 summary = hourly_summary(runs)
 
 total_vehicles = int(summary["vehicle_count"].sum()) if not summary.empty else 0
-avg_speed = summary["avg_speed_mph"].dropna()
-avg_speed_display = f"{avg_speed.mean():.0f} mph" if not avg_speed.empty else "unavailable"
+avg_speed_mph = summary["avg_speed_mph"].dropna()
+avg_speed_display = (
+    format_speed(float(avg_speed_mph.mean()), unit) if not avg_speed_mph.empty else t("unavailable", lang)
+)
 
 kpi1, kpi2, kpi3 = st.columns(3)
-kpi1.metric("Vehicles tracked", total_vehicles)
-kpi2.metric("Average speed", avg_speed_display)
-kpi3.metric("Cameras", len(runs))
+kpi1.metric(t("metric_vehicles_tracked", lang), total_vehicles)
+kpi2.metric(t("metric_avg_speed", lang), avg_speed_display)
+kpi3.metric(t("metric_cameras", lang), len(runs))
 
 if summary.empty:
-    st.warning("No vehicles were tracked in the videos added so far.")
+    st.warning(t("warning_no_vehicles", lang))
     st.stop()
 
-st.subheader("Vehicles per hour, by class")
-by_hour_class = summary.pivot_table(
+display = summary.copy()
+display["avg_speed"] = display["avg_speed_mph"].apply(lambda v: convert_speed(v, unit) if pd.notna(v) else v)
+display["median_speed"] = display["median_speed_mph"].apply(lambda v: convert_speed(v, unit) if pd.notna(v) else v)
+
+st.subheader(t("subheader_vehicles_per_hour", lang))
+by_hour_class = display.pivot_table(
     index="hour_start", columns="vehicle_class", values="vehicle_count", aggfunc="sum", fill_value=0
 )
 st.bar_chart(by_hour_class)
 
 col_a, col_b = st.columns(2)
 with col_a:
-    st.subheader("Direction split")
-    by_direction = summary.groupby("direction")["vehicle_count"].sum()
+    st.subheader(t("subheader_direction_split", lang))
+    by_direction = display.groupby("direction")["vehicle_count"].sum()
     st.bar_chart(by_direction)
 with col_b:
-    st.subheader("Average speed per hour")
-    by_hour_speed = summary.dropna(subset=["avg_speed_mph"]).groupby("hour_start")["avg_speed_mph"].mean()
+    st.subheader(t("subheader_avg_speed_per_hour", lang))
+    by_hour_speed = display.dropna(subset=["avg_speed"]).groupby("hour_start")["avg_speed"].mean()
     if by_hour_speed.empty:
-        st.caption("No calibrated speed data in these videos yet.")
+        st.caption(t("caption_no_speed_data", lang))
     else:
         st.bar_chart(by_hour_speed)
 
-st.subheader("Hourly summary")
-st.dataframe(summary, use_container_width=True)
+st.subheader(t("subheader_hourly_summary", lang))
+table = display.drop(columns=["avg_speed_mph", "median_speed_mph"]).rename(columns={
+    "avg_speed": f"avg_speed_{unit}", "median_speed": f"median_speed_{unit}",
+})
+st.dataframe(table, use_container_width=True)

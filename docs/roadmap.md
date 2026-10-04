@@ -15,17 +15,22 @@ than as one large change.
       cameras. No identity data. 12/12 new tests passing (36/36 total).
       Not yet deployed anywhere; run locally with
       `streamlit run dashboard/app.py`.
+- [x] `dashboard/i18n.py`, `dashboard/units.py` — language picker (English,
+      Hindi, Spanish, Mandarin; JSON string tables, add a language by
+      dropping a new locale file) and speed-unit toggle (km/h default, mph
+      optional; conversion is display-only, core/ and the aggregator still
+      work entirely in mph internally). Translations cover standard UI
+      vocabulary; worth a native-speaker pass before any public launch.
+      15/15 new tests passing (51/51 total).
 
 ## Planned, in order
-1. **Localization** — i18n framework, launch languages English, Hindi,
-   Spanish, Mandarin. Units toggle (km/h default, mph optional).
-2. **On-device inference** — swap YOLO11n for a nano-sized model that runs
+1. **On-device inference** — swap YOLO11n for a nano-sized model that runs
    in-browser (TensorFlow.js/ONNX), so the public version needs no server
    and stays free at any scale. Accuracy tradeoff gets measured and
    reported, not hidden.
-3. **PWA deployment** — installable web app, phone camera access via the
+2. **PWA deployment** — installable web app, phone camera access via the
    browser's camera API, no app store, no install cost.
-4. **Universal data layers**, pluggable per country/region:
+3. **Universal data layers**, pluggable per country/region:
    - Global tier (always available): WHO Global Status Report on Road
      Safety, UN regional road-safety indicators, ITF/OECD road safety
      reports, World Bank road safety indicators — country-level context.
@@ -34,10 +39,10 @@ than as one large change.
      adapter (NHTSA/FHWA — AADT, crash data).
    - OpenStreetMap, everywhere: posted speed limit and road classification
      for the exact road a camera is watching.
-5. **Weather integration** — pull live conditions for the camera's
+4. **Weather integration** — pull live conditions for the camera's
    location from a free weather API; correlate the platform's own measured
    speeds against conditions over time.
-6. **Risk modeling** — only where real historical crash + speed + weather
+5. **Risk modeling** — only where real historical crash + speed + weather
    data exists for a given road. Where it doesn't, the dashboard says so
    plainly rather than guessing. No invented probabilities.
 
