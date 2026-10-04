@@ -34,8 +34,20 @@ run against your own video:
 python -m core.app --video path/to/your_video.mp4
 ```
 
+## Dashboard
+
+`dashboard/app.py` is a Streamlit app: add one or more camera videos in the
+sidebar (each with its own calibration and direction labels), get counts by
+vehicle class, direction split, speed distribution, and hourly aggregation
+across all cameras added.
+
+```bash
+streamlit run dashboard/app.py
+```
+
+Deployable free on Streamlit Community Cloud. Not yet deployed anywhere.
+
 ## What's next
 
-Dashboard layer, multi-language UI, on-device inference for phone browsers,
-and pluggable global/regional/local road-safety data. Full plan in
-`docs/roadmap.md`.
+Multi-language UI, on-device inference for phone browsers, and pluggable
+global/regional/local road-safety data. Full plan in `docs/roadmap.md`.
