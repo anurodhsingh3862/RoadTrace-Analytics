@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RoadTrace Analytics — on-device</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; padding: 16px; background: #0b1220; color: #e8edf5; }
+    h1 { font-size: 1.1rem; margin: 0 0 12px; }
+    #status { color: #9fb3c8; margin-bottom: 12px; min-height: 1.2em; }
+    .video-wrap { position: relative; width: 100%; max-width: 960px; }
+    video, #overlay { width: 100%; display: block; border-radius: 8px; }
+    #overlay { position: absolute; top: 0; left: 0; pointer-events: none; }
+    fieldset { border: 1px solid #28344a; border-radius: 8px; margin-top: 16px; max-width: 480px; }
+    label { display: block; margin: 6px 0 2px; font-size: 0.85rem; }
+    input { width: 100%; box-sizing: border-box; padding: 4px; }
+    button { margin-top: 8px; padding: 8px 12px; }
+  </style>
+</head>
+<body>
+  <h1>RoadTrace Analytics — runs entirely in this browser tab, nothing uploaded</h1>
+  <p id="status">Loading...</p>
+
+  <div>
+    <input type="file" id="file-input" accept="video/*" />
+    <button id="camera-button" type="button">Use camera</button>
+  </div>
+
+  <div class="video-wrap">
+    <video id="source" autoplay playsinline muted></video>
+    <canvas id="overlay"></canvas>
+  </div>
+
+  <fieldset>
+    <legend>Speed calibration (optional, two points of known real-world distance)</legend>
+    <form id="calibration-form">
+      <label>Point 1 x, y (pixels)</label>
+      <div style="display:flex; gap:4px;">
+        <input name="p1x" type="number" value="0" />
+        <input name="p1y" type="number" value="0" />
+      </div>
+      <label>Point 2 x, y (pixels)</label>
+      <div style="display:flex; gap:4px;">
+        <input name="p2x" type="number" value="100" />
+        <input name="p2y" type="number" value="0" />
+      </div>
+      <label>Real-world distance between the points (meters)</label>
+      <input name="distance" type="number" value="10" step="0.1" />
+      <button type="submit">Set calibration</button>
+    </form>
+  </fieldset>
+
+  <!--
+    Bare "onnxruntime-web" import resolved via CDN, since this page has no
+    build step (npm install is for local dev/testing only, see
+    web/README.md). Pinned to the exact version web/package.json resolves,
+    so what's tested locally matches what loads here.
+  -->
+  <script type="importmap">
+  {
+    "imports": {
+      "onnxruntime-web": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/ort.wasm.min.mjs"
+    }
+  }
+  </script>
+  <script type="module" src="src/app.js"></script>
+</body>
+</html>
