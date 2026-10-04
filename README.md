@@ -54,7 +54,19 @@ estimation entirely in the browser, on the viewer's own device, no server
 and no upload. See `web/README.md` for setup and honest limitations versus
 `core/` and `dashboard/`.
 
+## Global road-safety data layer
+
+`data_layers/` adds optional, real-data context next to a camera's own
+measurements: a country's World Bank and WHO road-traffic-death-rate
+estimates, and an OpenStreetMap-sourced posted speed limit for a specific
+lat/lon. In the dashboard, add a country code and/or coordinates when
+adding a camera to see it under "Road safety context". Nothing here is
+predicted or invented — missing data is shown as missing, and the two
+country-level sources are shown side by side rather than blended into one
+number. See the module docstrings in `data_layers/` for exactly which
+indicators are used and how each was verified.
+
 ## What's next
 
-PWA packaging and pluggable global/regional/local road-safety data. Full
-plan in `docs/roadmap.md`.
+PWA packaging, weather correlation, and risk modeling (only where real
+historical data supports it). Full plan in `docs/roadmap.md`.

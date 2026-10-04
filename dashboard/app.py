@@ -16,8 +16,19 @@ from dashboard.aggregator import CameraRun, hourly_summary
 from dashboard.i18n import DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES, t
 from dashboard.pipeline import analyze_video
 from dashboard.units import DEFAULT_UNIT, SUPPORTED_UNITS, convert_speed, format_speed
+from data_layers import get_country_context, get_nearby_speed_limit
 
 st.set_page_config(page_title="RoadTrace Analytics", layout="wide")
+
+
+@st.cache_data(ttl=24 * 3600, show_spinner=False)
+def _cached_country_context(country_iso2: str):
+    return get_country_context(country_iso2)
+
+
+@st.cache_data(ttl=24 * 3600, show_spinner=False)
+def _cached_speed_limit(latitude: float, longitude: float):
+    return get_nearby_speed_limit(latitude, longitude)
 
 if "camera_runs" not in st.session_state:
     st.session_state.camera_runs: list[CameraRun] = []
@@ -67,6 +78,16 @@ with st.sidebar:
         dir_b = st.text_input(t("label_dir_b", lang), value="direction B")
         started_date = st.date_input(t("label_start_date", lang), value=datetime.now().date())
         started_time = st.time_input(t("label_start_time", lang), value=datetime.now().time())
+
+        st.caption(t("caption_location", lang))
+        add_location = st.checkbox(t("checkbox_add_location", lang))
+        country_code = latitude = longitude = None
+        if add_location:
+            country_code = st.text_input(t("label_country_code", lang), max_chars=2)
+            loc_c1, loc_c2 = st.columns(2)
+            latitude = loc_c1.number_input(t("label_latitude", lang), value=0.0, format="%.6f")
+            longitude = loc_c2.number_input(t("label_longitude", lang), value=0.0, format="%.6f")
+
         submitted = st.form_submit_button(t("button_process", lang))
 
     if submitted:
@@ -97,6 +118,9 @@ with st.sidebar:
                         started_at=started_at,
                         analytics=analytics,
                         direction_labels=(dir_a or "direction A", dir_b or "direction B"),
+                        country_iso2=(country_code or "").strip().upper() or None,
+                        latitude=float(latitude) if add_location and latitude else None,
+                        longitude=float(longitude) if add_location and longitude else None,
                     ))
                     st.success(t("success_added", lang, name=label or video_file.name))
             Path(tmp_path).unlink(missing_ok=True)
@@ -128,6 +152,33 @@ kpi1, kpi2, kpi3 = st.columns(3)
 kpi1.metric(t("metric_vehicles_tracked", lang), total_vehicles)
 kpi2.metric(t("metric_avg_speed", lang), avg_speed_display)
 kpi3.metric(t("metric_cameras", lang), len(runs))
+
+located_runs = [r for r in runs if r.country_iso2 or (r.latitude and r.longitude)]
+if located_runs:
+    st.subheader(t("subheader_road_safety_context", lang))
+    for run in located_runs:
+        with st.expander(run.label):
+            if run.country_iso2:
+                context = _cached_country_context(run.country_iso2)
+                if context.world_bank:
+                    st.write(t(
+                        "text_wb_rate", lang,
+                        rate=context.world_bank.deaths_per_100k, year=context.world_bank.year,
+                    ))
+                if context.who:
+                    st.write(t("text_who_rate", lang, rate=context.who.deaths_per_100k, year=context.who.year))
+                if not context.has_any_data:
+                    st.caption(t("text_no_country_data", lang))
+            if run.latitude and run.longitude:
+                speed_limit = _cached_speed_limit(run.latitude, run.longitude)
+                if speed_limit and speed_limit.maxspeed_raw:
+                    st.write(t(
+                        "text_speed_limit", lang,
+                        limit=speed_limit.maxspeed_raw, highway=speed_limit.highway_type or t("unavailable", lang),
+                    ))
+                else:
+                    st.caption(t("text_speed_limit_unknown", lang))
+            st.caption(t("text_context_disclaimer", lang))
 
 if summary.empty:
     st.warning(t("warning_no_vehicles", lang))

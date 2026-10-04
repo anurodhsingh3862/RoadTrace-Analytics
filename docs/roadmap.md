@@ -33,25 +33,40 @@ than as one large change.
       Known gaps versus core/: simpler tracker (more ID switches
       expected), two-point calibration only, non-letterboxed resize. Not
       yet deployed anywhere.
+- [x] `data_layers/` — global and local-tier road-safety context,
+      pluggable per source:
+      - World Bank (`SH.STA.TRAF.P5`) and WHO GHO (`RS_198`) road-traffic
+        death rate per country, shown side by side rather than blended.
+      - OpenStreetMap (Overpass API) posted speed limit + road
+        classification for a specific lat/lon, everywhere OSM has it
+        tagged.
+      Wired into the dashboard: add a country code and/or coordinates
+      when adding a camera to see "Road safety context". Every lookup
+      returns nothing (not a guess) when the source has no data for that
+      place. World Bank and WHO responses were live-verified against the
+      real APIs during development; Overpass could not be reached from
+      the dev sandbox's network policy, so it's built against its
+      documented schema and needs one real-network test run to confirm
+      before being trusted (`python -m data_layers.osm_speed_limit <lat>
+      <lon>`). 15/15 new tests (mocked HTTP) passing.
+      Not yet included: UN regional indicators, ITF/OECD reports, iRAP
+      star ratings, and a country-specific local adapter beyond OSM (e.g.
+      US NHTSA/FHWA) — same pattern, left for a follow-up PR if useful.
 
 ## Planned, in order
 1. **PWA deployment** — installable web app, phone camera access via the
    browser's camera API, no app store, no install cost.
-2. **Universal data layers**, pluggable per country/region:
-   - Global tier (always available): WHO Global Status Report on Road
-     Safety, UN regional road-safety indicators, ITF/OECD road safety
-     reports, World Bank road safety indicators — country-level context.
-   - Regional tier: iRAP road-level star ratings where published.
-   - Local tier: country-specific adapters, starting with a US reference
-     adapter (NHTSA/FHWA — AADT, crash data).
-   - OpenStreetMap, everywhere: posted speed limit and road classification
-     for the exact road a camera is watching.
-3. **Weather integration** — pull live conditions for the camera's
-   location from a free weather API; correlate the platform's own measured
-   speeds against conditions over time.
-4. **Risk modeling** — only where real historical crash + speed + weather
+2. **Weather integration** — pull historical/live conditions for a
+   camera's location from a free weather API (Open-Meteo, no key
+   required); correlate the platform's own measured speeds against
+   conditions over time.
+3. **Risk modeling** — only where real historical crash + speed + weather
    data exists for a given road. Where it doesn't, the dashboard says so
    plainly rather than guessing. No invented probabilities.
+4. **Remaining data-layer sources** — UN regional indicators, ITF/OECD
+   reports, iRAP star ratings, and additional country-specific local
+   adapters beyond OpenStreetMap, following the same pattern as
+   `data_layers/`.
 
 ## Explicitly out of scope
 - No license plate recognition, vehicle registration lookup, or any

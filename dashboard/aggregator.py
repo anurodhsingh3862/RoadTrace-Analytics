@@ -28,6 +28,12 @@ class CameraRun:
     started_at: datetime  # wall-clock time the recording/stream began
     analytics: TrafficAnalytics
     direction_labels: tuple[str, str] = ("direction A", "direction B")
+    # Optional location, used only to look up public road-safety reference
+    # data (data_layers/) — never shown or stored as anything tied to an
+    # individual vehicle or person.
+    country_iso2: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
 
 
 def vehicle_directions(df: pd.DataFrame, labels: tuple[str, str]) -> pd.Series:

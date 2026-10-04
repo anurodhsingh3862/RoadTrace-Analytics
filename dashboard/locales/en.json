@@ -35,5 +35,17 @@
   "subheader_hourly_summary": "Hourly summary",
   "unavailable": "unavailable",
   "label_language": "Language",
-  "label_units": "Speed units"
+  "label_units": "Speed units",
+  "caption_location": "Optional: country and coordinates, to show public road-safety reference data for this location.",
+  "checkbox_add_location": "I have location details",
+  "label_country_code": "Country code (2 letters, e.g. IN, US)",
+  "label_latitude": "Latitude",
+  "label_longitude": "Longitude",
+  "subheader_road_safety_context": "Road safety context",
+  "text_wb_rate": "World Bank: {rate} deaths per 100,000 people ({year})",
+  "text_who_rate": "WHO: {rate} deaths per 100,000 people ({year})",
+  "text_no_country_data": "No global road-safety reference data found for this country.",
+  "text_speed_limit": "OpenStreetMap posted speed limit nearby: {limit} ({highway})",
+  "text_speed_limit_unknown": "No posted speed limit found on OpenStreetMap near this location.",
+  "text_context_disclaimer": "Reference data for the country/road, not a prediction for this specific camera."
 }

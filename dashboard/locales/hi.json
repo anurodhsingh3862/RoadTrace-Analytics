@@ -35,5 +35,17 @@
   "subheader_hourly_summary": "प्रति घंटा सारांश",
   "unavailable": "अनुपलब्ध",
   "label_language": "भाषा",
-  "label_units": "गति इकाई"
+  "label_units": "गति इकाई",
+  "caption_location": "वैकल्पिक: देश और निर्देशांक, ताकि इस स्थान के लिए सार्वजनिक सड़क सुरक्षा संदर्भ डेटा दिखाया जा सके।",
+  "checkbox_add_location": "मेरे पास स्थान की जानकारी है",
+  "label_country_code": "देश कोड (2 अक्षर, जैसे IN, US)",
+  "label_latitude": "अक्षांश (Latitude)",
+  "label_longitude": "देशांतर (Longitude)",
+  "subheader_road_safety_context": "सड़क सुरक्षा संदर्भ",
+  "text_wb_rate": "विश्व बैंक: प्रति 100,000 लोगों पर {rate} मौतें ({year})",
+  "text_who_rate": "WHO: प्रति 100,000 लोगों पर {rate} मौतें ({year})",
+  "text_no_country_data": "इस देश के लिए कोई वैश्विक सड़क सुरक्षा संदर्भ डेटा नहीं मिला।",
+  "text_speed_limit": "OpenStreetMap पर नज़दीकी गति सीमा: {limit} ({highway})",
+  "text_speed_limit_unknown": "इस स्थान के पास OpenStreetMap पर कोई निर्धारित गति सीमा नहीं मिली।",
+  "text_context_disclaimer": "यह देश/सड़क के लिए संदर्भ डेटा है, इस विशेष कैमरे के लिए भविष्यवाणी नहीं।"
 }
