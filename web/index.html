@@ -50,6 +50,19 @@
     </form>
   </fieldset>
 
+  <!--
+    Bare "onnxruntime-web" import resolved via CDN, since this page has no
+    build step (npm install is for local dev/testing only, see
+    web/README.md). Pinned to the exact version web/package.json resolves,
+    so what's tested locally matches what loads here.
+  -->
+  <script type="importmap">
+  {
+    "imports": {
+      "onnxruntime-web": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/ort.wasm.min.mjs"
+    }
+  }
+  </script>
   <script type="module" src="src/app.js"></script>
 </body>
 </html>
