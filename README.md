@@ -66,7 +66,29 @@ country-level sources are shown side by side rather than blended into one
 number. See the module docstrings in `data_layers/` for exactly which
 indicators are used and how each was verified.
 
+## Weather
+
+`data_layers/weather.py` pulls hourly weather (temperature, precipitation,
+wind) for a camera's location and recording window from Open-Meteo (free,
+no key). The dashboard shows conditions during each located camera's
+recording, plus a small speed-vs-weather table by hour across cameras —
+shown as measurements side by side, not a claimed correlation; a single
+short video rarely has enough weather variation to say anything
+statistically meaningful, and the dashboard says so when that's the case.
+
+## Risk context
+
+`dashboard/risk_context.py` lines up what the platform actually measures
+next to what it can verify from public sources: the camera's measured
+average speed vs. the OpenStreetMap-posted limit for that location (and
+what share of hours ran over it), the country's background death rate, and
+the weather during recording. This is explicitly **not** a crash-risk
+score — that would need real historical crash data tied to the exact road,
+which no adapter here provides yet. Every number shown is something the
+platform measured or looked up, never estimated or invented.
+
 ## What's next
 
-PWA packaging, weather correlation, and risk modeling (only where real
-historical data supports it). Full plan in `docs/roadmap.md`.
+PWA packaging, and a local crash-data adapter (e.g. US NHTSA/FHWA) that
+would make an actual risk model possible for the first time. Full plan in
+`docs/roadmap.md`.

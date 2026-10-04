@@ -4,7 +4,7 @@ Streamlit Community Cloud. Run locally with: streamlit run dashboard/app.py
 """
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
@@ -17,6 +17,9 @@ from dashboard.i18n import DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES, t
 from dashboard.pipeline import analyze_video
 from dashboard.units import DEFAULT_UNIT, SUPPORTED_UNITS, convert_speed, format_speed
 from data_layers import get_country_context, get_nearby_speed_limit
+from data_layers.weather import get_hourly_weather, representative_conditions
+from dashboard.weather_correlation import has_enough_for_a_trend_note, speed_weather_table
+from dashboard.risk_context import build_risk_context
 
 st.set_page_config(page_title="RoadTrace Analytics", layout="wide")
 
@@ -29,6 +32,11 @@ def _cached_country_context(country_iso2: str):
 @st.cache_data(ttl=24 * 3600, show_spinner=False)
 def _cached_speed_limit(latitude: float, longitude: float):
     return get_nearby_speed_limit(latitude, longitude)
+
+
+@st.cache_data(ttl=3 * 3600, show_spinner=False)
+def _cached_weather(latitude: float, longitude: float, start, end):
+    return get_hourly_weather(latitude, longitude, start, end)
 
 if "camera_runs" not in st.session_state:
     st.session_state.camera_runs: list[CameraRun] = []
@@ -158,6 +166,9 @@ if located_runs:
     st.subheader(t("subheader_road_safety_context", lang))
     for run in located_runs:
         with st.expander(run.label):
+            context = None
+            speed_limit = None
+            conditions = None
             if run.country_iso2:
                 context = _cached_country_context(run.country_iso2)
                 if context.world_bank:
@@ -178,7 +189,46 @@ if located_runs:
                     ))
                 else:
                     st.caption(t("text_speed_limit_unknown", lang))
+
+                run_df = run.analytics.dataframe()
+                duration_s = float(run_df["timestamp_s"].max()) if not run_df.empty else 0.0
+                window_end = run.started_at + timedelta(seconds=duration_s)
+                weather_hours = _cached_weather(run.latitude, run.longitude, run.started_at, window_end)
+                conditions = representative_conditions(weather_hours) if weather_hours else None
+                if conditions:
+                    st.write(t(
+                        "text_weather", lang,
+                        temp=round(conditions.temperature_c), precip=conditions.precipitation_mm,
+                        wind=round(conditions.windspeed_kmh),
+                    ))
+                else:
+                    st.caption(t("text_weather_unavailable", lang))
+
+            risk = build_risk_context(
+                run, summary, speed_limit=speed_limit, country_context=context, weather=conditions,
+            )
+            if risk.percent_hours_over_limit is not None:
+                st.write(t(
+                    "text_percent_over_limit", lang,
+                    percent=round(risk.percent_hours_over_limit),
+                    avg=round(risk.avg_speed_kmh), limit=round(risk.posted_limit_kmh),
+                ))
             st.caption(t("text_context_disclaimer", lang))
+            st.caption(t("text_no_risk_score", lang))
+
+located_with_coords = [r for r in runs if r.latitude and r.longitude]
+if located_with_coords:
+    weather_table = speed_weather_table(located_with_coords, summary)
+    if not weather_table.empty:
+        st.subheader(t("subheader_speed_vs_weather", lang))
+        display_weather = weather_table.copy()
+        display_weather["avg_speed"] = display_weather["avg_speed_mph"].apply(lambda v: convert_speed(v, unit))
+        st.dataframe(
+            display_weather.drop(columns=["avg_speed_mph"]).rename(columns={"avg_speed": f"avg_speed_{unit}"}),
+            use_container_width=True,
+        )
+        if not has_enough_for_a_trend_note(weather_table):
+            st.caption(t("caption_weather_sample_too_small", lang))
 
 if summary.empty:
     st.warning(t("warning_no_vehicles", lang))

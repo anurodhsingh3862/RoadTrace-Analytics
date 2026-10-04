@@ -19,11 +19,15 @@ output in the dashboard.
 """
 from __future__ import annotations
 
+import re
 import sys
 from dataclasses import dataclass
 from typing import Optional
 
 import requests
+
+_MPH_TO_KMH = 1.609344
+_NUMERIC_MAXSPEED_RE = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*(mph|km/h|kmh)?\s*$", re.IGNORECASE)
 
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 
@@ -76,6 +80,25 @@ def get_nearby_speed_limit(lat: float, lon: float, *, radius_m: int = 50, timeou
     # limit on file" rather than "nothing nearby at all".
     first_tags = elements[0].get("tags", {})
     return SpeedLimitInfo(highway_type=first_tags.get("highway"), maxspeed_raw=None)
+
+
+def parse_maxspeed_kmh(maxspeed_raw: Optional[str]) -> Optional[float]:
+    """OSM's maxspeed tag is a loose convention, not a clean numeric field:
+    plain numbers default to km/h except in a handful of countries that use
+    mph (the tag then says so explicitly, e.g. "30 mph"); some ways instead
+    carry a non-numeric value like "national" or "walk" that refers to a
+    country's default rather than a posted number. This parses the common
+    numeric forms and returns None for everything else — a vague tag is
+    missing data, not something to guess a number for.
+    """
+    if not maxspeed_raw:
+        return None
+    match = _NUMERIC_MAXSPEED_RE.match(maxspeed_raw)
+    if not match:
+        return None
+    value = float(match.group(1))
+    unit = (match.group(2) or "km/h").lower()
+    return value * _MPH_TO_KMH if unit == "mph" else value
 
 
 if __name__ == "__main__":

@@ -52,21 +52,54 @@ than as one large change.
       Not yet included: UN regional indicators, ITF/OECD reports, iRAP
       star ratings, and a country-specific local adapter beyond OSM (e.g.
       US NHTSA/FHWA) — same pattern, left for a follow-up PR if useful.
+- [x] `data_layers/weather.py` + `dashboard/weather_correlation.py` —
+      hourly weather (temperature, precipitation, wind) from Open-Meteo
+      for a camera's location and recording window, shown per camera, plus
+      a speed-vs-weather table joined by hour across located cameras.
+      Deliberately not a correlation coefficient: a single recording
+      rarely spans enough distinct weather to support one, so this shows
+      the raw side-by-side numbers and a plain caption when the sample is
+      too small to suggest a pattern, rather than computing a statistic
+      that would overstate what a few data points can tell you.
+      Not live-verified from the dev sandbox (Open-Meteo's hosts are
+      blocked by both the shell network policy and robots.txt for the
+      fetch tool used during development); built against its long-stable
+      documented schema instead — confirm with `python -m data_layers.weather
+      <lat> <lon> <YYYY-MM-DD>` before trusting it. 13/13 new tests
+      (mocked HTTP) passing.
+
+- [x] `dashboard/risk_context.py` — lines up the camera's measured average
+      speed against the OSM-posted limit (and the share of hours that ran
+      over it), the country's background death rate, and the weather
+      during recording. Explicitly not a crash-risk score: no historical
+      crash data exists yet tied to any specific road this platform
+      watches, so nothing here estimates a likelihood of anything — it's
+      the measured facts, arranged, with that limitation stated on
+      screen every time. 15/15 new tests passing.
+      **What a real risk model still needs and doesn't have:** historical
+      crash counts/locations for the exact road a camera watches. That's
+      the next item below, not something to approximate from the data
+      already on hand.
 
 ## Planned, in order
 1. **PWA deployment** — installable web app, phone camera access via the
    browser's camera API, no app store, no install cost.
-2. **Weather integration** — pull historical/live conditions for a
-   camera's location from a free weather API (Open-Meteo, no key
-   required); correlate the platform's own measured speeds against
-   conditions over time.
-3. **Risk modeling** — only where real historical crash + speed + weather
-   data exists for a given road. Where it doesn't, the dashboard says so
-   plainly rather than guessing. No invented probabilities.
-4. **Remaining data-layer sources** — UN regional indicators, ITF/OECD
-   reports, iRAP star ratings, and additional country-specific local
-   adapters beyond OpenStreetMap, following the same pattern as
-   `data_layers/`.
+2. **A local crash-data adapter** (e.g. US NHTSA/FHWA, or an equivalent
+   open dataset for other countries) — the missing piece that would let
+   `risk_context.py` graduate from "measured facts side by side" to an
+   actual, evidence-based risk estimate for a specific road. Until a
+   country has real crash data wired in, the dashboard keeps saying so
+   rather than estimating.
+3. **Remaining global/regional data-layer sources** — UN regional
+   indicators, ITF/OECD reports, iRAP star ratings, following the same
+   pattern as `data_layers/`.
+4. **Permanent free URL** — register a free is-a.dev subdomain (e.g.
+   roadtrace.is-a.dev) pointing at the GitHub Pages deployment. Attempted
+   once; blocked by this environment's inability to fork/PR a third-party
+   GitHub repo through the API — needs a manual fork + PR from
+   github.com/is-a-dev/register via the browser (the `CNAME` file for it
+   is already sitting on the `gh-pages` branch, ready to go once the
+   subdomain is approved). Deferred at the user's request for now.
 
 ## Explicitly out of scope
 - No license plate recognition, vehicle registration lookup, or any
