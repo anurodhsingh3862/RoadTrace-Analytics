@@ -1,6 +1,7 @@
 // Client-side "road safety context": country-level road-death rates (World
-// Bank, WHO), a nearby posted speed limit (OpenStreetMap), and current
-// weather (Open-Meteo) for wherever the browser says the device is.
+// Bank, WHO), a nearby posted speed limit (OpenStreetMap), and detailed
+// current weather + air quality (Open-Meteo) for wherever the browser says
+// the device is.
 //
 // Every call here is a direct fetch from the visitor's own browser straight
 // to each public source — no server of ours sits in between, and nothing
@@ -18,7 +19,10 @@
 // for that is a 30+ MB per-year national file (see data_layers/crash_data.py)
 // — downloading tens of megabytes on every page visit just to show one
 // county's number isn't reasonable for a phone page, so that stays a
-// dashboard-only feature (see README "Dashboard" section for the link).
+// dashboard-only feature. Also not included: a 10-day/hourly forecast —
+// this card is a quick snapshot next to a traffic recording, not a weather
+// app; one point-in-time reading is what's relevant to a speed/safety
+// reading taken right now.
 
 const ISO2_TO_ISO3 = {
   IN: "IND", US: "USA", GB: "GBR", CA: "CAN", AU: "AUS", DE: "DEU",
@@ -122,26 +126,115 @@ export async function getNearbySpeedLimit(lat, lon, fetchImpl = fetch, radiusM =
   }
 }
 
-export function parseOpenMeteoCurrent(json) {
-  const current = json && json.current_weather;
+// --- Weather (detailed current conditions + today's sun/UV/rain) ------
+
+export function parseDetailedWeather(json) {
+  const current = json && json.current;
   if (!current) return null;
+
+  let visibilityM = null;
+  const hourlyTimes = json.hourly && json.hourly.time;
+  const hourlyVisibility = json.hourly && json.hourly.visibility;
+  if (Array.isArray(hourlyTimes) && Array.isArray(hourlyVisibility)) {
+    const idx = hourlyTimes.indexOf(current.time);
+    if (idx !== -1) visibilityM = hourlyVisibility[idx];
+  }
+
+  const daily = json.daily || {};
   return {
-    temperatureC: current.temperature,
-    windspeedKmh: current.windspeed,
-    weathercode: current.weathercode,
     time: current.time,
+    weathercode: current.weather_code,
+    temperatureC: current.temperature_2m,
+    apparentTemperatureC: current.apparent_temperature,
+    humidityPct: current.relative_humidity_2m,
+    precipitationMm: current.precipitation,
+    windspeedKmh: current.wind_speed_10m,
+    windGustsKmh: current.wind_gusts_10m,
+    windDirectionDeg: current.wind_direction_10m,
+    visibilityM,
+    sunrise: Array.isArray(daily.sunrise) ? daily.sunrise[0] : null,
+    sunset: Array.isArray(daily.sunset) ? daily.sunset[0] : null,
+    uvIndexMax: Array.isArray(daily.uv_index_max) ? daily.uv_index_max[0] : null,
+    precipitationSumMm: Array.isArray(daily.precipitation_sum) ? daily.precipitation_sum[0] : null,
   };
 }
 
-export async function getCurrentWeather(lat, lon, fetchImpl = fetch) {
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`;
+export async function getDetailedWeather(lat, lon, fetchImpl = fetch) {
+  const params = new URLSearchParams({
+    latitude: lat,
+    longitude: lon,
+    current: "temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m",
+    hourly: "visibility",
+    daily: "sunrise,sunset,uv_index_max,precipitation_sum",
+    timezone: "auto",
+    forecast_days: "1",
+  });
+  const url = `https://api.open-meteo.com/v1/forecast?${params.toString()}`;
   try {
     const response = await fetchImpl(url);
     if (!response.ok) return null;
-    return parseOpenMeteoCurrent(await response.json());
+    return parseDetailedWeather(await response.json());
   } catch {
     return null;
   }
+}
+
+// --- Air quality --------------------------------------------------------
+
+export function parseAirQuality(json) {
+  const current = json && json.current;
+  if (!current || current.us_aqi === null || current.us_aqi === undefined) return null;
+  return { usAqi: Number(current.us_aqi) };
+}
+
+export async function getAirQuality(lat, lon, fetchImpl = fetch) {
+  const params = new URLSearchParams({ latitude: lat, longitude: lon, current: "us_aqi" });
+  const url = `https://air-quality-api.open-meteo.com/v1/air-quality?${params.toString()}`;
+  try {
+    const response = await fetchImpl(url);
+    if (!response.ok) return null;
+    return parseAirQuality(await response.json());
+  } catch {
+    return null;
+  }
+}
+
+// US EPA AQI breakpoints: https://www.airnow.gov/aqi/aqi-basics/
+export function aqiCategory(usAqi) {
+  if (usAqi == null) return null;
+  if (usAqi <= 50) return "Good";
+  if (usAqi <= 100) return "Moderate";
+  if (usAqi <= 150) return "Unhealthy (sensitive groups)";
+  if (usAqi <= 200) return "Unhealthy";
+  if (usAqi <= 300) return "Very unhealthy";
+  return "Hazardous";
+}
+
+// --- Small display-unit helpers (metric is canonical everywhere above;
+// these only affect what's rendered) -------------------------------------
+
+export function cToF(celsius) {
+  return celsius == null ? null : (celsius * 9) / 5 + 32;
+}
+
+export function kmhToMph(kmh) {
+  return kmh == null ? null : kmh / MPH_TO_KMH;
+}
+
+export function mmToIn(mm) {
+  return mm == null ? null : mm / 25.4;
+}
+
+export function metersToMiles(m) {
+  return m == null ? null : m / 1609.344;
+}
+
+const COMPASS_POINTS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+
+export function compassDirection(degrees) {
+  if (degrees == null) return null;
+  const index = Math.round(((degrees % 360) / 45)) % 8;
+  return COMPASS_POINTS[index];
 }
 
 // Orchestrates every lookup for one location. Each field fails
@@ -151,11 +244,12 @@ export async function getCurrentWeather(lat, lon, fetchImpl = fetch) {
 export async function fetchRoadSafetyContext(lat, lon, fetchImpl = fetch) {
   const countryIso2 = await reverseGeocodeCountry(lat, lon, fetchImpl);
   const countryIso3 = isoToIso3(countryIso2);
-  const [worldBank, who, speedLimit, weather] = await Promise.all([
+  const [worldBank, who, speedLimit, weather, airQuality] = await Promise.all([
     countryIso2 ? getWorldBankRate(countryIso2, fetchImpl) : Promise.resolve(null),
     countryIso3 ? getWhoRate(countryIso3, fetchImpl) : Promise.resolve(null),
     getNearbySpeedLimit(lat, lon, fetchImpl),
-    getCurrentWeather(lat, lon, fetchImpl),
+    getDetailedWeather(lat, lon, fetchImpl),
+    getAirQuality(lat, lon, fetchImpl),
   ]);
-  return { countryIso2, worldBank, who, speedLimit, weather };
+  return { countryIso2, worldBank, who, speedLimit, weather, airQuality };
 }
