@@ -3,6 +3,18 @@
 // deliberately kept thin so the logic it calls (postprocess.js, tracker.js,
 // speed.js) is the part that's unit-tested.
 //
+// Renamed from app.js when camera.html replaced index.html as the live
+// camera tool (index.html became the marketing landing page) and the page
+// was restyled as a dark "HUD" to match a design mockup. All detection,
+// tracking, calibration, and context logic below is unchanged from before —
+// only the DOM it talks to and a few small HUD-only read-outs (vehicle
+// list, flow rate, detection confidence, an average-speed sparkline) are
+// new, built from data the pipeline already produces rather than anything
+// invented for the redesign. No per-vehicle identity (no plates, no
+// leaderboard of individual vehicles) is shown, in keeping with the
+// project's no-identity-data principle — the mockup this page is based on
+// included one; it's deliberately left out here.
+//
 // Calibration UX: the default path is "tap two spots on the video, then pick
 // how far apart they really are" rather than typing pixel coordinates — see
 // the project discussion that asked for a 5th-grade-friendly flow. The old
@@ -95,6 +107,7 @@ const calibHint = document.getElementById("calib-hint");
 const distancePicker = document.getElementById("distance-picker");
 const customDistanceInput = document.getElementById("custom-distance");
 const customDistanceSetButton = document.getElementById("custom-distance-set");
+const hudClock = document.getElementById("hud-clock");
 
 const scratch = document.createElement("canvas");
 scratch.width = MODEL_INPUT_SIZE;
@@ -110,6 +123,13 @@ let running = false;
 function setStatus(text) {
   statusEl.textContent = text;
 }
+
+function tickHudClock() {
+  if (!hudClock) return;
+  hudClock.textContent = new Date().toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+tickHudClock();
+setInterval(tickHudClock, 1000);
 
 // --- Tap-to-calibrate -------------------------------------------------
 
@@ -259,8 +279,8 @@ function drawDetections(detections) {
   for (const det of ordered) {
     const boxWidth = det.x2 - det.x1;
     const boxHeight = det.y2 - det.y1;
-    overlayCtx.strokeStyle = "#00d2ff";
-    overlayCtx.lineWidth = 2;
+    overlayCtx.strokeStyle = "#ff6b1f";
+    overlayCtx.lineWidth = 2.5;
     overlayCtx.strokeRect(det.x1, det.y1, boxWidth, boxHeight);
 
     // Small/distant boxes get a smaller, terser label so it doesn't
@@ -286,10 +306,107 @@ function drawDetections(detections) {
     let labelX = Math.min(Math.max(det.x1, 0), overlay.width - textWidth - 8);
     let labelY = det.y1 - boxH >= 0 ? det.y1 - boxH : det.y2;
 
-    overlayCtx.fillStyle = "#00142099";
+    overlayCtx.fillStyle = "#0c0c0ecc";
     overlayCtx.fillRect(labelX, labelY, textWidth + 8, boxH);
-    overlayCtx.fillStyle = "#ffffff";
+    overlayCtx.fillStyle = "#f3f1ee";
     overlayCtx.fillText(label, labelX + 4, labelY + boxH - 6);
+  }
+}
+
+// --- HUD read-outs: vehicle list, average speed + sparkline, flow,
+// detection confidence. All derived from the same `tracked` array and raw
+// detection scores the loop below already computes — nothing extra is
+// measured or invented for these panels.
+
+const vehicleListEl = document.getElementById("vehicle-list");
+const avgSpeedValueEl = document.getElementById("avg-speed-value");
+const avgSpeedSparkEl = document.getElementById("avg-speed-spark");
+const flowValueEl = document.getElementById("stat-flow-value");
+const flowBarEl = document.getElementById("stat-flow-bar");
+const confidenceValueEl = document.getElementById("stat-confidence-value");
+const confidenceBarEl = document.getElementById("stat-confidence-bar");
+
+const firstSeenByTrack = new Map(); // trackId -> timestampS, for the flow rate
+const speedSeries = []; // recent average-speed samples (km/h), for the sparkline
+const SPARK_MAX_POINTS = 24;
+let lastSparkSampleT = 0;
+
+function renderVehicleList(tracked) {
+  if (!vehicleListEl) return;
+  vehicleListEl.innerHTML = "";
+  if (tracked.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "hud-vehicle-empty";
+    empty.textContent = t("hud_no_vehicles");
+    vehicleListEl.appendChild(empty);
+    return;
+  }
+  const sorted = [...tracked].sort((a, b) => (b.speedMph ?? -1) - (a.speedMph ?? -1)).slice(0, 5);
+  for (const det of sorted) {
+    const row = document.createElement("div");
+    row.className = "hud-vehicle-row";
+    const label = document.createElement("span");
+    label.textContent = det.className;
+    const speed = document.createElement("span");
+    speed.className = "hud-vehicle-speed";
+    speed.textContent = det.speedMph != null ? `${Math.round(det.speedMph * MPH_TO_KMH)} km/h` : "—";
+    row.append(label, speed);
+    vehicleListEl.appendChild(row);
+  }
+}
+renderVehicleList([]); // shows the empty state immediately, before the first detection frame
+
+function sparkPath(series) {
+  if (series.length < 2) return "";
+  const max = Math.max(...series, 1);
+  const min = Math.min(...series, 0);
+  const range = Math.max(max - min, 1);
+  return series
+    .map((v, i) => {
+      const x = (i / (series.length - 1)) * 100;
+      const y = 32 - ((v - min) / range) * 28 - 2;
+      return `${i === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)}`;
+    })
+    .join(" ");
+}
+
+function renderHudStats(tracked, rawDetections, timestampS) {
+  const speeds = tracked.map((d) => d.speedMph).filter((v) => v != null);
+  if (avgSpeedValueEl) {
+    if (speeds.length > 0) {
+      const meanKmh = (speeds.reduce((a, b) => a + b, 0) / speeds.length) * MPH_TO_KMH;
+      avgSpeedValueEl.textContent = Math.round(meanKmh);
+      if (timestampS - lastSparkSampleT >= 1) {
+        speedSeries.push(meanKmh);
+        if (speedSeries.length > SPARK_MAX_POINTS) speedSeries.shift();
+        lastSparkSampleT = timestampS;
+      }
+    } else {
+      avgSpeedValueEl.textContent = "—";
+    }
+  }
+  if (avgSpeedSparkEl) avgSpeedSparkEl.setAttribute("d", sparkPath(speedSeries));
+
+  for (const det of tracked) {
+    if (!firstSeenByTrack.has(det.trackId)) firstSeenByTrack.set(det.trackId, timestampS);
+  }
+  // Prune tracks last seen over a minute ago so the map doesn't grow
+  // forever across a long session.
+  for (const [id, seenAt] of firstSeenByTrack) {
+    if (timestampS - seenAt > 120) firstSeenByTrack.delete(id);
+  }
+  const recentCount = [...firstSeenByTrack.values()].filter((seenAt) => timestampS - seenAt <= 60).length;
+  if (flowValueEl) flowValueEl.textContent = t("hud_flow_format", { count: recentCount });
+  if (flowBarEl) flowBarEl.style.width = `${Math.min(100, recentCount * 8)}%`;
+
+  if (rawDetections.length > 0) {
+    const meanScore = rawDetections.reduce((sum, d) => sum + d.score, 0) / rawDetections.length;
+    const pct = Math.round(meanScore * 100);
+    if (confidenceValueEl) confidenceValueEl.textContent = `${pct}%`;
+    if (confidenceBarEl) confidenceBarEl.style.width = `${pct}%`;
+  } else {
+    if (confidenceValueEl) confidenceValueEl.textContent = "—";
+    if (confidenceBarEl) confidenceBarEl.style.width = "0%";
   }
 }
 
@@ -311,6 +428,8 @@ async function frameLoop() {
     det.speedMph = speedEstimator.update(det.trackId, roadX, roadY, timestampS);
   }
   drawDetections(tracked);
+  renderVehicleList(tracked);
+  renderHudStats(tracked, raw, timestampS);
   requestAnimationFrame(frameLoop);
 }
 
