@@ -71,6 +71,7 @@ unit = st.session_state.unit
 with top_left:
     st.title(t("app_title", lang))
     st.caption(t("app_caption", lang))
+    st.markdown(f"[{t('text_try_on_device', lang)}](https://anurodhsingh3862.github.io/RoadTrace-Analytics/)")
 
 with st.sidebar:
     st.header(t("sidebar_header", lang))

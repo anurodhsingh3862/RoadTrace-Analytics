@@ -1,6 +1,7 @@
 {
   "app_title": "RoadTrace Analytics",
   "app_caption": "Conteo de vehículos, velocidad y dirección a partir de video de tráfico. Sin placas, sin datos de identidad, sin búsquedas de registro.",
+  "text_try_on_device": "📷 ¿Solo quieres probarlo con tu propia cámara, ahora mismo? Usa la página en el dispositivo →",
   "sidebar_header": "Agregar una cámara",
   "label_camera_label": "Etiqueta de la cámara",
   "placeholder_camera_label": "ej. Calle Principal con la 5ª",
