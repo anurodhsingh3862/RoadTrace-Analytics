@@ -61,12 +61,14 @@ than as one large change.
       the raw side-by-side numbers and a plain caption when the sample is
       too small to suggest a pattern, rather than computing a statistic
       that would overstate what a few data points can tell you.
-      Not live-verified from the dev sandbox (Open-Meteo's hosts are
+      Not live-verifiable from the dev sandbox (Open-Meteo's hosts are
       blocked by both the shell network policy and robots.txt for the
       fetch tool used during development); built against its long-stable
-      documented schema instead — confirm with `python -m data_layers.weather
-      <lat> <lon> <YYYY-MM-DD>` before trusting it. 13/13 new tests
-      (mocked HTTP) passing.
+      documented schema instead. **Verified 2026-10-05** against real
+      data (Evansville, IN) — realistic diurnal temperature curve, zero
+      precipitation on a dry day, confirmed by the user running
+      `python -m data_layers.weather <lat> <lon> <YYYY-MM-DD>` locally.
+      13/13 new tests (mocked HTTP) passing.
 
 - [x] `dashboard/risk_context.py` — lines up the camera's measured average
       speed against the OSM-posted limit (and the share of hours that ran
@@ -97,17 +99,21 @@ than as one large change.
       records *fatal* crashes (a county with zero on file is "zero fatal
       crashes on record", not "safe"). Both the module docstring and the
       dashboard say this every time the number is shown.
-      **This is the least-verified adapter in the repo**: every live call
-      made to the CrashAPI during development (from the sandbox shell and
-      from the fetch tool used to verify the other adapters) was rejected
-      with HTTP 403 — the API's documentation page confirms it's real and
-      public, but its actual JSON shape was never directly observed.
-      Built defensively against NHTSA's documented FARS field-naming
-      conventions and tolerant of a couple of shape variants, but treat
-      it as unverified until you run `python -m data_layers.crash_data
-      <state_fips> <county_fips> <year>` on a machine with normal
-      internet access and sanity-check the count against NHTSA's own
-      published tables. 8/8 new tests (mocked HTTP) passing.
+      Every live call made to the CrashAPI during initial development (from
+      the sandbox shell and from the fetch tool used to verify the other
+      adapters) was rejected with HTTP 403. **Root-caused 2026-10-05**: the
+      host's Akamai/edgesuite WAF rejects `requests`' default User-Agent
+      string specifically, not the API itself — confirmed by the user
+      hitting the endpoint directly from their own machine and seeing the
+      exact "Access Denied" WAF page. Fixed by sending a normal
+      browser-like User-Agent header. Still needs one more confirmation
+      run — the header fix should resolve the 403, but the actual JSON
+      shape (built defensively from NHTSA's documented FARS field-naming
+      conventions) hasn't been seen on a real success response yet: run
+      `python -m data_layers.crash_data <state_fips> <county_fips> <year>`
+      and check the printed count against NHTSA's own published tables.
+      9/9 tests (mocked HTTP, including a regression guard on the
+      User-Agent header) passing.
 
 ## Planned, in order
 1. **A road-level crash dataset** — the actual remaining prerequisite for
