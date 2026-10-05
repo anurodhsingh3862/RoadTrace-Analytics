@@ -105,6 +105,7 @@ with top_left:
     st.title(t("app_title", lang))
     st.caption(t("app_caption", lang))
     st.markdown(f"[{t('text_try_on_device', lang)}](https://anurodhsingh3862.github.io/RoadTrace-Analytics/)")
+    st.markdown(f"[{t('text_try_new_dashboard', lang)}](https://anurodhsingh3862.github.io/RoadTrace-Analytics/dashboard.html)")
 
 with st.expander(t("expander_live_camera", lang), expanded=False):
     if not LIVE_CAMERA_AVAILABLE:
