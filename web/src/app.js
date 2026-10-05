@@ -13,7 +13,7 @@ import { VehicleDetector } from "./detector.js";
 import { IouTracker } from "./tracker.js";
 import { Calibration, SpeedEstimator } from "./speed.js";
 import { MODEL_INPUT_SIZE } from "./postprocess.js";
-import { fetchRoadSafetyContext } from "./context.js";
+import { fetchRoadSafetyContext, cToF, kmhToMph, mmToIn, metersToMiles, compassDirection, aqiCategory } from "./context.js";
 
 const MPH_TO_KMH = 1.609344;
 
@@ -240,18 +240,50 @@ const WEATHER_CODE_LABELS = {
 
 const contextButton = document.getElementById("context-button");
 const contextNote = document.getElementById("context-note");
+const contextUnits = document.getElementById("context-units");
 const contextGrid = document.getElementById("context-grid");
 const contextWorldBank = document.getElementById("context-worldbank");
 const contextWho = document.getElementById("context-who");
 const contextSpeedLimit = document.getElementById("context-speedlimit");
 const contextWeather = document.getElementById("context-weather");
+const contextFeelsLike = document.getElementById("context-feelslike");
+const contextHumidity = document.getElementById("context-humidity");
+const contextWind = document.getElementById("context-wind");
+const contextVisibility = document.getElementById("context-visibility");
+const contextSun = document.getElementById("context-sun");
+const contextUv = document.getElementById("context-uv");
+const contextPrecip = document.getElementById("context-precip");
+const contextAqi = document.getElementById("context-aqi");
 
 function setContextField(el, text, available) {
   el.textContent = text;
   el.classList.toggle("unavailable", !available);
 }
 
+// Remembers the last fetch so switching °C/°F or km/h/mph just re-renders —
+// no need to ask the public sources again for a display-only change.
+let lastContext = null;
+const units = { temp: "c", speed: "kmh" };
+
+function formatTemp(celsius) {
+  if (celsius == null) return null;
+  return units.temp === "f" ? `${Math.round(cToF(celsius))}°F` : `${Math.round(celsius)}°C`;
+}
+
+function formatSpeed(kmh) {
+  if (kmh == null) return null;
+  return units.speed === "mph" ? `${Math.round(kmhToMph(kmh))} mph` : `${Math.round(kmh)} km/h`;
+}
+
+function formatShortTime(isoString) {
+  if (!isoString) return null;
+  const date = new Date(isoString);
+  if (Number.isNaN(date.getTime())) return isoString;
+  return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
 function renderRoadSafetyContext(context) {
+  contextUnits.style.display = "flex";
   contextGrid.style.display = "grid";
 
   if (context.worldBank) {
@@ -267,18 +299,73 @@ function renderRoadSafetyContext(context) {
   }
 
   if (context.speedLimit && context.speedLimit.maxspeedKmh != null) {
-    setContextField(contextSpeedLimit, `${Math.round(context.speedLimit.maxspeedKmh)} km/h`, true);
+    setContextField(contextSpeedLimit, formatSpeed(context.speedLimit.maxspeedKmh), true);
   } else {
     setContextField(contextSpeedLimit, "No tagged road nearby", false);
   }
 
-  if (context.weather) {
-    const label = WEATHER_CODE_LABELS[context.weather.weathercode] || "Current";
-    setContextField(contextWeather, `${label}, ${Math.round(context.weather.temperatureC)}°C`, true);
+  const w = context.weather;
+  if (w) {
+    const label = WEATHER_CODE_LABELS[w.weathercode] || "Current";
+    setContextField(contextWeather, `${label}, ${formatTemp(w.temperatureC)}`, true);
+    setContextField(contextFeelsLike, w.apparentTemperatureC != null ? formatTemp(w.apparentTemperatureC) : "Not available", w.apparentTemperatureC != null);
+    setContextField(contextHumidity, w.humidityPct != null ? `${Math.round(w.humidityPct)}%` : "Not available", w.humidityPct != null);
+
+    if (w.windspeedKmh != null) {
+      const dir = compassDirection(w.windDirectionDeg);
+      const gusts = w.windGustsKmh != null ? `, gusts ${formatSpeed(w.windGustsKmh)}` : "";
+      setContextField(contextWind, `${formatSpeed(w.windspeedKmh)}${dir ? " " + dir : ""}${gusts}`, true);
+    } else {
+      setContextField(contextWind, "Not available", false);
+    }
+
+    if (w.visibilityM != null) {
+      const text = units.speed === "mph" ? `${metersToMiles(w.visibilityM).toFixed(1)} mi` : `${(w.visibilityM / 1000).toFixed(1)} km`;
+      setContextField(contextVisibility, text, true);
+    } else {
+      setContextField(contextVisibility, "Not available", false);
+    }
+
+    if (w.sunrise && w.sunset) {
+      setContextField(contextSun, `${formatShortTime(w.sunrise)} / ${formatShortTime(w.sunset)}`, true);
+    } else {
+      setContextField(contextSun, "Not available", false);
+    }
+
+    setContextField(contextUv, w.uvIndexMax != null ? `${w.uvIndexMax}` : "Not available", w.uvIndexMax != null);
+
+    if (w.precipitationSumMm != null) {
+      const text = units.speed === "mph" ? `${mmToIn(w.precipitationSumMm).toFixed(2)} in` : `${w.precipitationSumMm} mm`;
+      setContextField(contextPrecip, text, true);
+    } else {
+      setContextField(contextPrecip, "Not available", false);
+    }
   } else {
-    setContextField(contextWeather, "Not available", false);
+    for (const el of [contextWeather, contextFeelsLike, contextHumidity, contextWind, contextVisibility, contextSun, contextUv, contextPrecip]) {
+      setContextField(el, "Not available", false);
+    }
+  }
+
+  if (context.airQuality && context.airQuality.usAqi != null) {
+    setContextField(contextAqi, `${context.airQuality.usAqi} (${aqiCategory(context.airQuality.usAqi)})`, true);
+  } else {
+    setContextField(contextAqi, "Not available", false);
   }
 }
+
+for (const chip of contextUnits.querySelectorAll(".unit-chip")) {
+  chip.addEventListener("click", () => {
+    const group = chip.dataset.unitGroup;
+    units[group] = chip.dataset.unit;
+    for (const sibling of contextUnits.querySelectorAll(`[data-unit-group="${group}"]`)) {
+      sibling.classList.toggle("active", sibling === chip);
+    }
+    if (lastContext) renderRoadSafetyContext(lastContext);
+  });
+}
+// Default selection, shown once results appear.
+contextUnits.querySelector('[data-unit-group="temp"][data-unit="c"]').classList.add("active");
+contextUnits.querySelector('[data-unit-group="speed"][data-unit="kmh"]').classList.add("active");
 
 contextButton.addEventListener("click", () => {
   if (!("geolocation" in navigator)) {
@@ -291,9 +378,9 @@ contextButton.addEventListener("click", () => {
       contextNote.textContent = "Looking up public sources for this location...";
       const { latitude, longitude } = position.coords;
       try {
-        const context = await fetchRoadSafetyContext(latitude, longitude);
+        lastContext = await fetchRoadSafetyContext(latitude, longitude);
         contextNote.textContent = "";
-        renderRoadSafetyContext(context);
+        renderRoadSafetyContext(lastContext);
       } catch {
         contextNote.textContent = "Couldn't reach those sources right now — try again in a moment.";
       }
