@@ -13,8 +13,9 @@ than as one large change.
       vehicle class, direction split (by net pixel displacement, not a
       compass heading), speed distribution, hourly aggregation across
       cameras. No identity data. 12/12 new tests passing (36/36 total).
-      Not yet deployed anywhere; run locally with
-      `streamlit run dashboard/app.py`.
+      **Live**: https://roadtrace-analytics-eznzyjg6jschcteyxmmedl.streamlit.app/
+      (free, Streamlit Community Cloud, deployed 2026-10-05); run locally
+      instead with `streamlit run dashboard/app.py`.
 - [x] `dashboard/i18n.py`, `dashboard/units.py` — language picker (English,
       Hindi, Spanish, Mandarin; JSON string tables, add a language by
       dropping a new locale file) and speed-unit toggle (km/h default, mph
@@ -31,8 +32,9 @@ than as one large change.
       only — see web/README.md for what's not covered and needs a real
       browser to verify). 73/73 total passing across the whole repo.
       Known gaps versus core/: simpler tracker (more ID switches
-      expected), two-point calibration only, non-letterboxed resize. Not
-      yet deployed anywhere.
+      expected), two-point calibration only, non-letterboxed resize.
+      **Live**: https://anurodhsingh3862.github.io/RoadTrace-Analytics/
+      (free, GitHub Pages), installable as a PWA.
 - [x] `data_layers/` — global and local-tier road-safety context,
       pluggable per source:
       - World Bank (`SH.STA.TRAF.P5`) and WHO GHO (`RS_198`) road-traffic

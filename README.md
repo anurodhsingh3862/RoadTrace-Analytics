@@ -45,7 +45,9 @@ across all cameras added.
 streamlit run dashboard/app.py
 ```
 
-Deployable free on Streamlit Community Cloud. Not yet deployed anywhere.
+**Live**: https://roadtrace-analytics-eznzyjg6jschcteyxmmedl.streamlit.app/
+— free on Streamlit Community Cloud. Anyone with the link can use it; it's
+a demo instance, not meant for heavy/concurrent video processing.
 
 ## On-device (web)
 
@@ -53,6 +55,9 @@ Deployable free on Streamlit Community Cloud. Not yet deployed anywhere.
 estimation entirely in the browser, on the viewer's own device, no server
 and no upload. See `web/README.md` for setup and honest limitations versus
 `core/` and `dashboard/`.
+
+**Live**: https://anurodhsingh3862.github.io/RoadTrace-Analytics/ — free
+on GitHub Pages, installable as a PWA (Add to Home Screen / Install app).
 
 ## Global road-safety data layer
 
