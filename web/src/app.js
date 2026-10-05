@@ -246,18 +246,65 @@ function drawDetections(detections) {
     overlayCtx.fill();
   }
 
-  for (const det of detections) {
+  // A box's own label sits above it when there's room, but with several
+  // vehicles close together near the top of the frame (a common case —
+  // distant traffic is both small and clustered) stacking every label
+  // right above its box makes neighboring labels overlap into unreadable
+  // text. Sorting by box width (bigger/closer vehicles drawn last, so
+  // their labels win any remaining overlap) and keeping labels short and
+  // clamped to the canvas keeps this readable without needing a layout
+  // engine.
+  const ordered = [...detections].sort((a, b) => a.x2 - a.x1 - (b.x2 - b.x1));
+
+  for (const det of ordered) {
+    const boxWidth = det.x2 - det.x1;
+    const boxHeight = det.y2 - det.y1;
     overlayCtx.strokeStyle = "#00d2ff";
     overlayCtx.lineWidth = 2;
-    overlayCtx.strokeRect(det.x1, det.y1, det.x2 - det.x1, det.y2 - det.y1);
-    const speedText = det.speedMph != null ? `${Math.round(det.speedMph * MPH_TO_KMH)} km/h` : "no speed yet";
-    const label = `${det.className} · ${speedText}`;
-    overlayCtx.font = "14px sans-serif";
+    overlayCtx.strokeRect(det.x1, det.y1, boxWidth, boxHeight);
+
+    // Small/distant boxes get a smaller, terser label so it doesn't
+    // dwarf the vehicle it's labeling or collide with a neighbor's.
+    const compact = boxWidth < 70 || boxHeight < 50;
+    const fontSize = compact ? 11 : 14;
+    const speedText =
+      det.speedMph != null
+        ? `${Math.round(det.speedMph * MPH_TO_KMH)} km/h`
+        : compact
+          ? "—"
+          : t("overlay_label_no_speed");
+    const label = compact ? speedText : `${det.className} · ${speedText}`;
+
+    overlayCtx.font = `${fontSize}px sans-serif`;
     const textWidth = overlayCtx.measureText(label).width;
+    const boxH = fontSize + 6;
+
+    // Keep the label inside the canvas on every edge, and flip it below
+    // the box instead of off the top of the frame when the vehicle is
+    // near the top edge — the exact spot where close, overlapping labels
+    // were getting cut off and unreadable.
+    let labelX = Math.min(Math.max(det.x1, 0), overlay.width - textWidth - 8);
+    let labelY = det.y1 - boxH >= 0 ? det.y1 - boxH : det.y2;
+
     overlayCtx.fillStyle = "#00142099";
-    overlayCtx.fillRect(det.x1, det.y1 - 18, textWidth + 8, 18);
+    overlayCtx.fillRect(labelX, labelY, textWidth + 8, boxH);
     overlayCtx.fillStyle = "#ffffff";
-    overlayCtx.fillText(label, det.x1 + 4, det.y1 - 4);
+    overlayCtx.fillText(label, labelX + 4, labelY + boxH - 6);
+  }
+
+  // Speed only ever appears once calibration is set (two-point-distance
+  // step below the video) — without it every vehicle legitimately shows
+  // no number forever, which reads as broken rather than "not set up
+  // yet". Keep that requirement visible directly on the camera feed
+  // itself, not just in the step-2 card someone may not have scrolled to.
+  if (!speedEstimator.calibration && detections.length > 0) {
+    overlayCtx.font = "14px sans-serif";
+    const hint = t("overlay_calibrate_hint");
+    const hintWidth = overlayCtx.measureText(hint).width;
+    overlayCtx.fillStyle = "#00142099";
+    overlayCtx.fillRect(8, 8, hintWidth + 16, 26);
+    overlayCtx.fillStyle = "#ffd27a";
+    overlayCtx.fillText(hint, 16, 26);
   }
 }
 
