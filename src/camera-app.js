@@ -33,7 +33,7 @@ import { VehicleDetector } from "./detector.js";
 import { IouTracker } from "./tracker.js";
 import { AutoSpeedEstimator } from "./speed.js";
 import { MODEL_INPUT_SIZE } from "./postprocess.js";
-import { fetchRoadSafetyContext, cToF, kmhToMph, mmToIn, metersToMiles, compassDirection, aqiCategory } from "./context.js";
+import { fetchRoadSafetyContext, getNearbySpeedLimit, cToF, kmhToMph, mmToIn, metersToMiles, compassDirection, aqiCategory } from "./context.js";
 import {
   SUPPORTED_LANGUAGES,
   t,
@@ -158,6 +158,12 @@ cameraButton.addEventListener("click", async () => {
     video.srcObject = stream;
     await video.play();
     setStatus(t("status_camera_on"));
+    // Only for the live camera, not an uploaded file: the posted speed
+    // limit is only meaningful for wherever the phone actually is right
+    // now, which is only true when it's filming live. A video uploaded
+    // from somewhere else would get a nearby-to-you limit that has
+    // nothing to do with where it was recorded.
+    fetchHudSpeedLimit();
   } catch (err) {
     setStatus(t("status_camera_error"));
   }
@@ -321,6 +327,62 @@ function renderAvgSpeedStat(speedByTrackId) {
   if (speedBarEl) speedBarEl.style.width = `${Math.min(100, (avgMph / SPEED_BAR_CEILING_MPH) * 100)}%`;
 }
 renderAvgSpeedStat(new Map());
+
+// --- Posted speed limit for wherever the phone is right now -------------
+// A lightweight, standalone lookup (just OpenStreetMap's nearby maxspeed
+// tag, not the full road-safety-context fetch further down the page,
+// which also pulls World Bank/WHO/weather/air-quality data this HUD row
+// doesn't need) so a vehicle's estimated speed can be read against the
+// actual posted limit at a glance, without scrolling down and pressing a
+// separate button. Asked for once per page load, the moment the live
+// camera actually starts (see the cameraButton handler above) — not on
+// page load itself, so the browser's location prompt only appears once
+// there's a real reason for it.
+const speedLimitValueEl = document.getElementById("stat-speedlimit-value");
+let hudSpeedLimitKmh = null;
+let hudSpeedLimitNote = null; // shown instead of a value when there isn't one (denied/unavailable/no data)
+let speedLimitRequested = false;
+
+function renderHudSpeedLimit() {
+  if (!speedLimitValueEl) return;
+  if (hudSpeedLimitKmh != null) {
+    speedLimitValueEl.textContent = formatSpeed(hudSpeedLimitKmh);
+  } else {
+    speedLimitValueEl.textContent = hudSpeedLimitNote || "—";
+  }
+}
+renderHudSpeedLimit();
+
+function fetchHudSpeedLimit() {
+  if (speedLimitRequested) return; // ask once per page load, not on every camera restart
+  speedLimitRequested = true;
+  if (!("geolocation" in navigator)) {
+    hudSpeedLimitNote = t("hud_speedlimit_unavailable");
+    renderHudSpeedLimit();
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    async (position) => {
+      try {
+        const result = await getNearbySpeedLimit(position.coords.latitude, position.coords.longitude);
+        if (result && result.maxspeedKmh != null) {
+          hudSpeedLimitKmh = result.maxspeedKmh;
+          hudSpeedLimitNote = null;
+        } else {
+          hudSpeedLimitNote = t("hud_speedlimit_no_data");
+        }
+      } catch {
+        hudSpeedLimitNote = t("hud_speedlimit_unavailable");
+      }
+      renderHudSpeedLimit();
+    },
+    () => {
+      hudSpeedLimitNote = t("hud_speedlimit_denied");
+      renderHudSpeedLimit();
+    },
+    { timeout: 10000 }
+  );
+}
 
 async function frameLoop() {
   if (!running || video.paused || video.ended) {
@@ -513,6 +575,7 @@ for (const chip of document.querySelectorAll(".unit-chip")) {
     if (group === "speed") {
       renderVehicleList(lastTracked, lastSpeedByTrackId);
       renderAvgSpeedStat(lastSpeedByTrackId);
+      renderHudSpeedLimit();
     }
   });
 }
