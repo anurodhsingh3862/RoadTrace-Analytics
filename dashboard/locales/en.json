@@ -68,5 +68,7 @@
   "metric_live_vehicles": "Vehicles counted this session",
   "text_live_speeds": "Current speeds: {speeds}",
   "caption_live_network_note": "Needs camera permission, and works best on Wi-Fi: this free setup can't always get through mobile-carrier networks. If \"Start\" doesn't connect after a few seconds, try a Wi-Fi connection instead.",
-  "warning_live_camera_unavailable": "Live camera isn't available on this deployment right now (a required package didn't load). Uploading a video above still works normally."
+  "warning_live_camera_unavailable": "Live camera isn't available on this deployment right now (a required package didn't load). Uploading a video above still works normally.",
+  "button_export_results": "Download results as JSON",
+  "caption_export_results": "Download everything shown on this page as one JSON file. Use it with the standalone dashboard page for a richer, chart-based view of these results."
 }

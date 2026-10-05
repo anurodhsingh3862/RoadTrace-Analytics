@@ -230,6 +230,27 @@ than as one large change.
       visible string and the document title, and the choice survives a
       page reload — screenshotted in Hindi, Spanish, and Mandarin.
 
+- [x] `dashboard/export.py` — a JSON export button on the Streamlit
+      dashboard ("Download results as JSON"). Streamlit's own component
+      styling can't produce the polished, glass-card/chart-heavy look the
+      user wants, so the plan is a separate static HTML/CSS/JS dashboard
+      page (same zero-cost GitHub Pages pattern as the on-device page)
+      for *display*, while Streamlit keeps doing what it's good at (video
+      upload, YOLO processing, pandas aggregation). This export is the
+      bridge between the two: one flat, JSON-safe payload
+      (`schema_version`, camera metadata, hourly vehicle/speed summary,
+      direction totals, per-camera risk context — country/WHO road-death
+      rates, posted speed limit, weather, county crash stats — and the
+      speed-vs-weather table) built by a plain, Streamlit-independent
+      function (`build_export_payload()`, same "no network calls, no
+      Streamlit dependency" shape as `risk_context.py` and
+      `weather_correlation.py`) so it's trivially unit-testable and always
+      matches exactly what's on screen. 7/7 new tests, including a
+      round-trip-through-real-`json.dumps()` check (pandas `Timestamp`/
+      `NaN` values are the usual way this kind of payload silently breaks)
+      and empty-input/zeroed-payload behavior. Next: build the actual
+      display page that reads this file.
+
 ## Planned, in order
 1. **A road-level crash dataset** — the actual remaining prerequisite for
    `risk_context.py` to become a real risk model instead of "measured
