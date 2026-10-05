@@ -400,6 +400,33 @@ than as one large change.
     work. The manual `Calibration`/`SpeedEstimator` classes are untouched
     and still available if a future calibrated mode is wanted here.
 
+  - **Fixed the actual reason speed never appeared on the live camera
+    page, even after the automatic estimator (above) shipped.**
+    Root cause: `tracker.js`'s `IouTracker` only matched a vehicle to its
+    previous frame by bounding-box overlap (IoU). On a phone, model
+    inference runs far slower than on a desktop (no SIMD/threads in some
+    mobile WASM setups) — easily a couple of frames per second or slower
+    — so a vehicle moving at any real speed can cover more ground between
+    two detection frames than its own box width, leaving zero overlap.
+    The tracker then handed it a brand-new track id every single frame.
+    Classification kept working fine (that's a per-frame judgment, no
+    identity needed) but `AutoSpeedEstimator` needs 2+ samples under the
+    *same* track id, so it silently never got a second sample and speed
+    stayed blank forever — exactly what was reported. Fix: `IouTracker`
+    now also tries a centroid-distance fallback match (same class, center
+    within 2x the box's own size) whenever IoU finds no overlap at all,
+    so a track survives a frame where it moved too far to overlap, while
+    still starting a new track for a genuinely different, far-away
+    vehicle. Added 4 new tracker tests for this exact scenario, plus a
+    dedicated `speed-integration.test.js` that drives the real tracker
+    and the real speed estimator together — simulating a car crossing the
+    frame faster than phone-speed inference keeps up — to catch this
+    specific failure mode if it ever regresses. 70/70 tests passing.
+    Caveat: this is a logic fix verified by simulation and unit tests in
+    this environment (no physical phone camera available here to confirm
+    against); it should be checked against real traffic before relying on
+    it for a professor-facing demo.
+
 ## Planned, in order
 1. **A road-level crash dataset** — the actual remaining prerequisite for
    `risk_context.py` to become a real risk model instead of "measured
