@@ -1,29 +1,32 @@
-// Wires the camera/file source, detector, tracker, and speed estimator
-// together, and draws results on the overlay canvas. This file is UI glue,
-// deliberately kept thin so the logic it calls (postprocess.js, tracker.js,
-// speed.js) is the part that's unit-tested.
+// Wires the camera/file source, detector, and tracker together, and draws
+// results on the overlay canvas. This file is UI glue, deliberately kept
+// thin so the logic it calls (postprocess.js, tracker.js) is the part
+// that's unit-tested.
 //
 // Renamed from app.js when camera.html replaced index.html as the live
 // camera tool (index.html became the marketing landing page) and the page
-// was restyled as a dark "HUD" to match a design mockup. All detection,
-// tracking, calibration, and context logic below is unchanged from before —
-// only the DOM it talks to and a few small HUD-only read-outs (vehicle
-// list, flow rate, detection confidence, an average-speed sparkline) are
-// new, built from data the pipeline already produces rather than anything
-// invented for the redesign. No per-vehicle identity (no plates, no
-// leaderboard of individual vehicles) is shown, in keeping with the
-// project's no-identity-data principle — the mockup this page is based on
-// included one; it's deliberately left out here.
+// was restyled as a dark "HUD" to match a design mockup.
 //
-// Calibration UX: the default path is "tap two spots on the video, then pick
-// how far apart they really are" rather than typing pixel coordinates — see
-// the project discussion that asked for a 5th-grade-friendly flow. The old
-// precise numeric form still exists behind the <details> "Advanced" toggle,
-// since it's occasionally useful for exact repeatable setups (e.g. a fixed
-// demo camera) and costs nothing to keep.
+// Speed estimation (speed.js's Calibration/SpeedEstimator, and the
+// tap-two-spots calibration flow that used to live here) was removed from
+// this page entirely, per direct feedback that it was confusing and out of
+// place for a point-your-phone-at-traffic tool — you can't reliably know a
+// real-world reference distance while filming live from a handheld phone,
+// and every version of that flow (a card to scroll to, then a banner
+// reminder) still read as broken rather than optional. Calibrated speed
+// stays exactly where it already works well: the Streamlit dashboard
+// (dashboard/app.py), which processes a fixed, already-recorded camera
+// video where a real calibration is actually practical to set up once.
+// This page now does what a live phone camera is naturally good at:
+// counting and classifying vehicles as they pass, plus live road-safety
+// context. speed.js itself is untouched and still unit-tested — it just
+// isn't used by this page anymore.
+//
+// No per-vehicle identity (no plates, no leaderboard of individual
+// vehicles) is shown, in keeping with the project's no-identity-data
+// principle.
 import { VehicleDetector } from "./detector.js";
 import { IouTracker } from "./tracker.js";
-import { Calibration, SpeedEstimator } from "./speed.js";
 import { MODEL_INPUT_SIZE } from "./postprocess.js";
 import { fetchRoadSafetyContext, cToF, kmhToMph, mmToIn, metersToMiles, compassDirection, aqiCategory } from "./context.js";
 import {
@@ -36,8 +39,6 @@ import {
   localizedAqiCategory,
   localizedCompass,
 } from "./i18n.js";
-
-const MPH_TO_KMH = 1.609344;
 
 // --- Language picker ----------------------------------------------------
 // First thing on the page, per the on-device page getting the same
@@ -65,9 +66,6 @@ function updateLangChipState() {
 function localizeStaticText() {
   for (const el of document.querySelectorAll("[data-i18n]")) {
     el.textContent = t(el.dataset.i18n);
-  }
-  for (const el of document.querySelectorAll("[data-i18n-placeholder]")) {
-    el.placeholder = t(el.dataset.i18nPlaceholder);
   }
   document.title = t("doc_title");
   document.documentElement.lang = getLanguage();
@@ -100,13 +98,6 @@ const statusEl = document.getElementById("status");
 const fileInput = document.getElementById("file-input");
 const fileButton = document.getElementById("file-button");
 const cameraButton = document.getElementById("camera-button");
-const calibrationForm = document.getElementById("calibration-form");
-const calibrateButton = document.getElementById("calibrate-button");
-const skipCalibrateButton = document.getElementById("skip-calibrate-button");
-const calibHint = document.getElementById("calib-hint");
-const distancePicker = document.getElementById("distance-picker");
-const customDistanceInput = document.getElementById("custom-distance");
-const customDistanceSetButton = document.getElementById("custom-distance-set");
 const hudClock = document.getElementById("hud-clock");
 
 const scratch = document.createElement("canvas");
@@ -116,7 +107,6 @@ const scratchCtx = scratch.getContext("2d", { willReadFrequently: true });
 
 const detector = new VehicleDetector();
 const tracker = new IouTracker();
-let speedEstimator = new SpeedEstimator(null);
 let startTime = null;
 let running = false;
 
@@ -130,102 +120,6 @@ function tickHudClock() {
 }
 tickHudClock();
 setInterval(tickHudClock, 1000);
-
-// --- Tap-to-calibrate -------------------------------------------------
-
-let picking = false; // true while waiting for the user's two taps
-let pickedPoints = []; // video-pixel [x, y] pairs collected so far
-
-function videoPointFromClick(event) {
-  const rect = overlay.getBoundingClientRect();
-  const touch = event.touches ? event.touches[0] : event;
-  const scaleX = video.videoWidth / rect.width;
-  const scaleY = video.videoHeight / rect.height;
-  const x = (touch.clientX - rect.left) * scaleX;
-  const y = (touch.clientY - rect.top) * scaleY;
-  return [x, y];
-}
-
-function startPicking() {
-  if (!video.videoWidth) {
-    calibHint.textContent = t("hint_start_first");
-    return;
-  }
-  picking = true;
-  pickedPoints = [];
-  distancePicker.style.display = "none";
-  overlay.classList.add("pickable");
-  calibHint.textContent = t("hint_tap_first");
-}
-
-function handleOverlayClick(event) {
-  if (!picking) return;
-  event.preventDefault();
-  const point = videoPointFromClick(event);
-  pickedPoints.push(point);
-  if (pickedPoints.length === 1) {
-    calibHint.textContent = t("hint_tap_second");
-  } else {
-    picking = false;
-    overlay.classList.remove("pickable");
-    calibHint.textContent = t("hint_spots_marked");
-    distancePicker.style.display = "block";
-  }
-}
-
-function finishCalibration(distanceMeters) {
-  try {
-    const calibration = new Calibration(pickedPoints[0], pickedPoints[1], distanceMeters);
-    speedEstimator = new SpeedEstimator(calibration);
-    calibHint.textContent = t("hint_all_set");
-    distancePicker.style.display = "none";
-  } catch (err) {
-    calibHint.textContent = t("hint_too_close");
-  }
-}
-
-calibrateButton.addEventListener("click", startPicking);
-
-skipCalibrateButton.addEventListener("click", () => {
-  picking = false;
-  pickedPoints = [];
-  overlay.classList.remove("pickable");
-  distancePicker.style.display = "none";
-  speedEstimator = new SpeedEstimator(null);
-  calibHint.textContent = t("hint_skip");
-});
-
-overlay.addEventListener("click", handleOverlayClick);
-
-for (const chip of distancePicker.querySelectorAll(".chip")) {
-  chip.addEventListener("click", () => finishCalibration(Number(chip.dataset.meters)));
-}
-
-customDistanceSetButton.addEventListener("click", () => {
-  const meters = Number(customDistanceInput.value);
-  if (!(meters > 0)) {
-    calibHint.textContent = t("hint_distance_invalid");
-    return;
-  }
-  finishCalibration(meters);
-});
-
-// --- Advanced (precise pixel-coordinate) calibration, unchanged ------
-
-calibrationForm.addEventListener("submit", (event) => {
-  event.preventDefault();
-  const formData = new FormData(calibrationForm);
-  const p1 = [Number(formData.get("p1x")), Number(formData.get("p1y"))];
-  const p2 = [Number(formData.get("p2x")), Number(formData.get("p2y"))];
-  const distance = Number(formData.get("distance"));
-  try {
-    const calibration = new Calibration(p1, p2, distance);
-    speedEstimator = new SpeedEstimator(calibration);
-    calibHint.textContent = t("hint_advanced_set");
-  } catch (err) {
-    calibHint.textContent = t("hint_advanced_error", { message: err.message });
-  }
-});
 
 // --- Video source: camera or uploaded file ----------------------------
 
@@ -252,19 +146,12 @@ cameraButton.addEventListener("click", async () => {
   }
 });
 
-// --- Drawing and the detect/track/speed loop ---------------------------
+// --- Drawing and the detect/track loop ---------------------------------
 
 function drawDetections(detections) {
   overlay.width = video.videoWidth;
   overlay.height = video.videoHeight;
   overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
-
-  for (const [x, y] of pickedPoints) {
-    overlayCtx.fillStyle = "#ffd27a";
-    overlayCtx.beginPath();
-    overlayCtx.arc(x, y, 6, 0, Math.PI * 2);
-    overlayCtx.fill();
-  }
 
   // A box's own label sits above it when there's room, but with several
   // vehicles close together near the top of the frame (a common case —
@@ -283,17 +170,11 @@ function drawDetections(detections) {
     overlayCtx.lineWidth = 2.5;
     overlayCtx.strokeRect(det.x1, det.y1, boxWidth, boxHeight);
 
-    // Small/distant boxes get a smaller, terser label so it doesn't
-    // dwarf the vehicle it's labeling or collide with a neighbor's.
+    // Small/distant boxes get a smaller label so it doesn't dwarf the
+    // vehicle it's labeling or collide with a neighbor's.
     const compact = boxWidth < 70 || boxHeight < 50;
     const fontSize = compact ? 11 : 14;
-    const speedText =
-      det.speedMph != null
-        ? `${Math.round(det.speedMph * MPH_TO_KMH)} km/h`
-        : compact
-          ? "—"
-          : t("overlay_label_no_speed");
-    const label = compact ? speedText : `${det.className} · ${speedText}`;
+    const label = det.className;
 
     overlayCtx.font = `${fontSize}px sans-serif`;
     const textWidth = overlayCtx.measureText(label).width;
@@ -313,23 +194,18 @@ function drawDetections(detections) {
   }
 }
 
-// --- HUD read-outs: vehicle list, average speed + sparkline, flow,
-// detection confidence. All derived from the same `tracked` array and raw
-// detection scores the loop below already computes — nothing extra is
-// measured or invented for these panels.
+// --- HUD read-outs: a vehicles-now summary, flow, and detection
+// confidence. All derived from the same `tracked` array and raw detection
+// scores the loop below already computes — nothing extra is measured or
+// invented for these panels, and nothing here needs a calibration step.
 
 const vehicleListEl = document.getElementById("vehicle-list");
-const avgSpeedValueEl = document.getElementById("avg-speed-value");
-const avgSpeedSparkEl = document.getElementById("avg-speed-spark");
 const flowValueEl = document.getElementById("stat-flow-value");
 const flowBarEl = document.getElementById("stat-flow-bar");
 const confidenceValueEl = document.getElementById("stat-confidence-value");
 const confidenceBarEl = document.getElementById("stat-confidence-bar");
 
 const firstSeenByTrack = new Map(); // trackId -> timestampS, for the flow rate
-const speedSeries = []; // recent average-speed samples (km/h), for the sparkline
-const SPARK_MAX_POINTS = 24;
-let lastSparkSampleT = 0;
 
 function renderVehicleList(tracked) {
   if (!vehicleListEl) return;
@@ -341,52 +217,25 @@ function renderVehicleList(tracked) {
     vehicleListEl.appendChild(empty);
     return;
   }
-  const sorted = [...tracked].sort((a, b) => (b.speedMph ?? -1) - (a.speedMph ?? -1)).slice(0, 5);
-  for (const det of sorted) {
+  const counts = new Map();
+  for (const det of tracked) {
+    counts.set(det.className, (counts.get(det.className) || 0) + 1);
+  }
+  for (const [className, count] of [...counts.entries()].sort((a, b) => b[1] - a[1])) {
     const row = document.createElement("div");
     row.className = "hud-vehicle-row";
     const label = document.createElement("span");
-    label.textContent = det.className;
-    const speed = document.createElement("span");
-    speed.className = "hud-vehicle-speed";
-    speed.textContent = det.speedMph != null ? `${Math.round(det.speedMph * MPH_TO_KMH)} km/h` : "—";
-    row.append(label, speed);
+    label.textContent = className;
+    const countEl = document.createElement("span");
+    countEl.className = "hud-vehicle-count";
+    countEl.textContent = count;
+    row.append(label, countEl);
     vehicleListEl.appendChild(row);
   }
 }
 renderVehicleList([]); // shows the empty state immediately, before the first detection frame
 
-function sparkPath(series) {
-  if (series.length < 2) return "";
-  const max = Math.max(...series, 1);
-  const min = Math.min(...series, 0);
-  const range = Math.max(max - min, 1);
-  return series
-    .map((v, i) => {
-      const x = (i / (series.length - 1)) * 100;
-      const y = 32 - ((v - min) / range) * 28 - 2;
-      return `${i === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)}`;
-    })
-    .join(" ");
-}
-
 function renderHudStats(tracked, rawDetections, timestampS) {
-  const speeds = tracked.map((d) => d.speedMph).filter((v) => v != null);
-  if (avgSpeedValueEl) {
-    if (speeds.length > 0) {
-      const meanKmh = (speeds.reduce((a, b) => a + b, 0) / speeds.length) * MPH_TO_KMH;
-      avgSpeedValueEl.textContent = Math.round(meanKmh);
-      if (timestampS - lastSparkSampleT >= 1) {
-        speedSeries.push(meanKmh);
-        if (speedSeries.length > SPARK_MAX_POINTS) speedSeries.shift();
-        lastSparkSampleT = timestampS;
-      }
-    } else {
-      avgSpeedValueEl.textContent = "—";
-    }
-  }
-  if (avgSpeedSparkEl) avgSpeedSparkEl.setAttribute("d", sparkPath(speedSeries));
-
   for (const det of tracked) {
     if (!firstSeenByTrack.has(det.trackId)) firstSeenByTrack.set(det.trackId, timestampS);
   }
@@ -422,11 +271,6 @@ async function frameLoop() {
     confThreshold: 0.3,
   });
   const tracked = tracker.update(raw);
-  for (const det of tracked) {
-    const roadX = (det.x1 + det.x2) / 2;
-    const roadY = det.y2;
-    det.speedMph = speedEstimator.update(det.trackId, roadX, roadY, timestampS);
-  }
   drawDetections(tracked);
   renderVehicleList(tracked);
   renderHudStats(tracked, raw, timestampS);
