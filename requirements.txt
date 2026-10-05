@@ -9,3 +9,8 @@ matplotlib>=3.8,<4
 lap>=0.5.12,<0.6
 streamlit>=1.38,<2
 requests>=2.31,<3
+# Live-camera dashboard tab: WebRTC streaming from the viewer's own browser
+# into this free Streamlit Cloud session, plus the av library it needs for
+# decoding frames. Both free/open-source.
+streamlit-webrtc>=0.47,<1
+av>=11,<18

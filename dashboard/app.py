@@ -4,16 +4,19 @@ Streamlit Community Cloud. Run locally with: streamlit run dashboard/app.py
 """
 from __future__ import annotations
 
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 import pandas as pd
 import streamlit as st
+from streamlit_webrtc import WebRtcMode, webrtc_streamer
 
 from core.speed_estimator import Calibration
 from dashboard.aggregator import CameraRun, hourly_summary
 from dashboard.i18n import DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES, t
+from dashboard.live import LiveTrafficProcessor, ManualCalibration
 from dashboard.pipeline import analyze_video
 from dashboard.units import DEFAULT_UNIT, SUPPORTED_UNITS, convert_speed, format_speed
 from data_layers import get_country_context, get_county_fatal_crashes, get_nearby_speed_limit
@@ -72,6 +75,52 @@ with top_left:
     st.title(t("app_title", lang))
     st.caption(t("app_caption", lang))
     st.markdown(f"[{t('text_try_on_device', lang)}](https://anurodhsingh3862.github.io/RoadTrace-Analytics/)")
+
+with st.expander(t("expander_live_camera", lang), expanded=False):
+    st.caption(t("caption_live_camera", lang))
+    live_calibrate = st.checkbox(t("checkbox_live_calibrate", lang), key="live_calibrate")
+    live_calibration = None
+    if live_calibrate:
+        lc1, lc2 = st.columns(2)
+        with lc1:
+            live_p1x = st.number_input("Point 1 x", min_value=0, value=0, key="live_p1x")
+            live_p1y = st.number_input("Point 1 y", min_value=0, value=0, key="live_p1y")
+        with lc2:
+            live_p2x = st.number_input("Point 2 x", min_value=0, value=100, key="live_p2x")
+            live_p2y = st.number_input("Point 2 y", min_value=0, value=0, key="live_p2y")
+        st.caption(t("label_live_point1", lang) + " / " + t("label_live_point2", lang))
+        live_distance_m = st.number_input(t("label_live_distance", lang), min_value=0.1, value=10.0, key="live_distance")
+        try:
+            live_calibration = ManualCalibration(
+                point1=(float(live_p1x), float(live_p1y)),
+                point2=(float(live_p2x), float(live_p2y)),
+                distance_m=float(live_distance_m),
+            )
+        except ValueError as exc:
+            st.error(str(exc))
+            live_calibration = None
+
+    webrtc_ctx = webrtc_streamer(
+        key="live-traffic",
+        mode=WebRtcMode.SENDRECV,
+        video_processor_factory=lambda: LiveTrafficProcessor(live_calibration),
+        media_stream_constraints={"video": True, "audio": False},
+    )
+
+    if webrtc_ctx.video_processor:
+        live_stats_placeholder = st.empty()
+        while webrtc_ctx.state.playing:
+            snapshot = webrtc_ctx.video_processor.stats.snapshot()
+            with live_stats_placeholder.container():
+                st.metric(t("metric_live_vehicles", lang), snapshot["total_vehicles"])
+                if snapshot["counts_by_class"]:
+                    st.write(snapshot["counts_by_class"])
+                if snapshot["live_speeds_mph"]:
+                    speeds_text = ", ".join(
+                        format_speed(s, unit) for s in snapshot["live_speeds_mph"]
+                    )
+                    st.write(t("text_live_speeds", lang, speeds=speeds_text))
+            time.sleep(1)
 
 with st.sidebar:
     st.header(t("sidebar_header", lang))

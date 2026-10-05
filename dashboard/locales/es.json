@@ -58,5 +58,13 @@
   "label_us_county_fips": "Código FIPS del condado de EE. UU. (opcional, 5 dígitos)",
   "caption_us_county_fips": "Solo cámaras en EE. UU.: busca en línea el código FIPS de 5 dígitos de tu condado (2 dígitos de estado + 3 de condado) para ver los choques fatales registrados en ese condado.",
   "text_county_crashes": "NHTSA FARS: {count} choques fatales registrados en este condado en {year}",
-  "text_county_crashes_unavailable": "Aún no hay datos de choques fatales disponibles para este condado/año."
+  "text_county_crashes_unavailable": "Aún no hay datos de choques fatales disponibles para este condado/año.",
+  "expander_live_camera": "📹 Cámara en vivo (beta) — ve el conteo desde tu propia cámara ahora mismo",
+  "caption_live_camera": "Usa el mismo detector que se usa para los videos subidos, pero en vivo, sobre la cámara de tu navegador. No se graba ni se guarda nada — solo existe mientras esto está abierto. Este nivel de alojamiento gratuito es una CPU compartida sin GPU, así que espera unos pocos fotogramas por segundo en lugar de un video fluido; la página en el dispositivo es la opción fluida y verdaderamente en tiempo real. Mientras la cámara esté activa, los demás controles de esta página no responderán hasta que la detengas.",
+  "checkbox_live_calibrate": "Calibrar para velocidad (opcional)",
+  "label_live_point1": "Punto 1 x, y (píxeles)",
+  "label_live_point2": "Punto 2 x, y (píxeles)",
+  "label_live_distance": "Distancia real entre esos puntos (metros)",
+  "metric_live_vehicles": "Vehículos contados en esta sesión",
+  "text_live_speeds": "Velocidades actuales: {speeds}"
 }

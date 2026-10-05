@@ -58,5 +58,13 @@
   "label_us_county_fips": "US county FIPS code (optional, 5 digits)",
   "caption_us_county_fips": "US cameras only: look up your county's 5-digit FIPS code online (2-digit state + 3-digit county) to see fatal-crash counts on file for that county.",
   "text_county_crashes": "NHTSA FARS: {count} fatal crashes on file for this county in {year}",
-  "text_county_crashes_unavailable": "No fatal-crash data available for this county/year yet."
+  "text_county_crashes_unavailable": "No fatal-crash data available for this county/year yet.",
+  "expander_live_camera": "📹 Live camera (beta) — see counts from your own camera right now",
+  "caption_live_camera": "Runs the same detector used for uploaded videos, against your browser's camera, live. Nothing is recorded or saved — it only exists while this is open. This free hosting tier is a shared CPU with no GPU, so expect a few frames per second rather than smooth video; the on-device page is the smooth, truly real-time option. While the camera is running, other controls on this page won't respond until you stop it.",
+  "checkbox_live_calibrate": "Calibrate for speed (optional)",
+  "label_live_point1": "Point 1 x, y (pixels)",
+  "label_live_point2": "Point 2 x, y (pixels)",
+  "label_live_distance": "Real distance between those points (meters)",
+  "metric_live_vehicles": "Vehicles counted this session",
+  "text_live_speeds": "Current speeds: {speeds}"
 }

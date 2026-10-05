@@ -131,6 +131,35 @@ than as one large change.
       year=2024, fatal_crash_count=20, fatalities=21, ...)` for
       Vanderburgh County, IN — a real, in-range number, not a guess.
       10/10 tests (mocked HTTP + an in-memory ZIP fixture) passing.
+- [x] `dashboard/live.py` — live-camera tab on the dashboard itself
+      (`streamlit-webrtc`), so a visitor doesn't have to upload a
+      pre-recorded file to get counts: clicking the link, opening the
+      "Live camera" expander, and allowing the camera shows running
+      vehicle counts (and, if the two-point calibration is filled in, a
+      speed estimate) from their own browser's camera, live, inside the
+      same free Streamlit Cloud session. Reuses the same
+      detector/tracker as uploaded videos (`core.detector`,
+      `core.tracker`); speed estimation is a new wall-clock-timestamp
+      tracker (`LiveSpeedTracker`), not `core.speed_estimator`, because
+      that one assumes a known constant FPS and a live WebRTC stream's
+      frame rate varies with CPU load — the same reasoning already used
+      for the on-device page's `web/src/speed.js`.
+      **Honest limitation, stated on screen, not just here**: Streamlit
+      Community Cloud's free tier is a shared CPU core with no GPU.
+      Real-time YOLO inference on a live stream will likely run at a few
+      frames per second rather than smooth video. The user explicitly
+      chose to ship this anyway, accepting that lag, after being asked;
+      the on-device page remains the smooth, truly real-time option, and
+      the dashboard's "Live camera" caption says so.
+      Nothing from the camera is recorded or uploaded anywhere — frames
+      exist only in that visitor's own session, for as long as the
+      expander is open.
+      12/12 tests passing for the parts that don't require loading a real
+      model (`ManualCalibration`, `LiveSpeedTracker`, `LiveStats`); the
+      WebRTC video-processor class itself is exercised by a manual boot
+      smoke test (`streamlit run dashboard/app.py` serving HTTP 200 with
+      no import errors), not a unit test, since it loads a real YOLO
+      model at construction.
 
 ## Planned, in order
 1. **A road-level crash dataset** — the actual remaining prerequisite for

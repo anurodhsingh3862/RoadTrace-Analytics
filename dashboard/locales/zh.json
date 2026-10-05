@@ -58,5 +58,13 @@
   "label_us_county_fips": "美国县 FIPS 代码(可选,5位数字)",
   "caption_us_county_fips": "仅限美国摄像头:请在线查询您所在县的5位 FIPS 代码(2位州代码 + 3位县代码),以查看该县已记录的致命车祸数量。",
   "text_county_crashes": "NHTSA FARS:该县 {year} 年记录在案的致命车祸 {count} 起",
-  "text_county_crashes_unavailable": "该县/年份暂无致命车祸数据。"
+  "text_county_crashes_unavailable": "该县/年份暂无致命车祸数据。",
+  "expander_live_camera": "📹 实时摄像头(测试版)— 立即查看您自己摄像头的统计数据",
+  "caption_live_camera": "使用与处理上传视频相同的检测器,实时对您浏览器的摄像头画面进行分析。不会录制或保存任何内容——仅在此页面打开期间存在。此免费托管层使用共享 CPU、没有 GPU,因此预计只有每秒几帧,而非流畅视频;设备端页面才是流畅、真正实时的选择。摄像头运行期间,本页面上的其他控件将不会响应,直到您停止它。",
+  "checkbox_live_calibrate": "校准以测速(可选)",
+  "label_live_point1": "点1 x, y(像素)",
+  "label_live_point2": "点2 x, y(像素)",
+  "label_live_distance": "这两点之间的实际距离(米)",
+  "metric_live_vehicles": "本次会话已计数车辆",
+  "text_live_speeds": "当前速度:{speeds}"
 }
