@@ -13,7 +13,7 @@ than as one large change.
       vehicle class, direction split (by net pixel displacement, not a
       compass heading), speed distribution, hourly aggregation across
       cameras. No identity data. 12/12 new tests passing (36/36 total).
-      **Live**: https://roadtrace-analytics-eznzyjg6jschcteyxmmedl.streamlit.app/
+      **Live**: https://roadtrace-analytics-d.streamlit.app/
       (free, Streamlit Community Cloud, deployed 2026-10-05); run locally
       instead with `streamlit run dashboard/app.py`.
 - [x] `dashboard/i18n.py`, `dashboard/units.py` — language picker (English,
@@ -291,6 +291,32 @@ than as one large change.
       Cross-linked from both other pages: a button on the on-device
       page's "want deeper analysis" card, and a markdown link under the
       Streamlit dashboard's title.
+- [x] Renamed the Streamlit app's URL from its random default
+      (`roadtrace-analytics-eznzyjg6jschcteyxmmedl.streamlit.app`) to the
+      much shorter `roadtrace-analytics-d.streamlit.app` (Streamlit's own
+      settings UI — the plain `roadtrace-analytics` subdomain was already
+      taken, hence the `-d` suffix). The GitHub repo name, and so the
+      GitHub Pages URL (`anurodhsingh3862.github.io/RoadTrace-Analytics/`),
+      stayed as-is by choice. Every in-repo link to the old Streamlit URL
+      updated to match.
+- [x] `dashboard/i18n.py` — fixed a real, already-shipped production bug
+      found while doing the above: locale JSON files were loaded once and
+      cached forever, keyed only on language code. Streamlit Community
+      Cloud's ordinary "pull code, rerun the script" deploy path (as
+      opposed to a dependency-change deploy, which does restart the
+      process) never restarts the process, so that cache kept serving
+      whatever a locale file's contents were the *first* time it was ever
+      loaded — a key added in a later deploy (here, `text_try_new_dashboard`
+      from the previous entry) silently rendered as its own literal key
+      name forever, with no error, invisible to every local test (a fresh
+      test process always loads the current file, so the bug only shows up
+      on a long-lived server). Fixed by keying the cache on the file's path
+      *and* mtime, so a redeployed file with new content naturally
+      invalidates the stale entry — no process restart required. Caught by
+      the user from a live screenshot, not by anything in CI; two new
+      regression tests reproduce the exact failure mode (edit a file on
+      disk mid-process, confirm the next lookup sees the change) and the
+      cache's efficiency (an unchanged file isn't reread every call).
 
 ## Planned, in order
 1. **A road-level crash dataset** — the actual remaining prerequisite for
@@ -302,13 +328,15 @@ than as one large change.
 2. **Remaining global/regional data-layer sources** — UN regional
    indicators, ITF/OECD reports, iRAP star ratings, following the same
    pattern as `data_layers/`.
-3. **Permanent free URL** — register a free is-a.dev subdomain (e.g.
-   roadtrace.is-a.dev) pointing at the GitHub Pages deployment. Attempted
-   twice (API-based fork/PR, then a manual browser fork); both blocked —
-   this environment can't fork/PR a third-party GitHub repo via API, and
-   the manual browser fork errored out for the user. The `CNAME` file is
-   already sitting on the `gh-pages` branch, ready to go whenever this is
-   picked back up. Deferred at the user's request for now.
+3. **Permanent free URL for the on-device/dashboard pages** — register a
+   free is-a.dev subdomain (e.g. roadtrace.is-a.dev) pointing at the
+   GitHub Pages deployment. Attempted twice (API-based fork/PR, then a
+   manual browser fork); both blocked — this environment can't fork/PR a
+   third-party GitHub repo via API, and the manual browser fork errored
+   out for the user. The never-registered `CNAME` file was since removed
+   from the `gh-pages` branch. Deferred at the user's request for now; the
+   GitHub Pages URL (`anurodhsingh3862.github.io/RoadTrace-Analytics/`) is
+   the one in active use.
 
 ## Explicitly out of scope
 - No license plate recognition, vehicle registration lookup, or any

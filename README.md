@@ -45,7 +45,7 @@ across all cameras added.
 streamlit run dashboard/app.py
 ```
 
-**Live**: https://roadtrace-analytics-eznzyjg6jschcteyxmmedl.streamlit.app/
+**Live**: https://roadtrace-analytics-d.streamlit.app/
 — free on Streamlit Community Cloud. Anyone with the link can use it; it's
 a demo instance, not meant for heavy/concurrent video processing.
 
