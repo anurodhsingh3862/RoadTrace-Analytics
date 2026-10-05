@@ -183,6 +183,30 @@ than as one large change.
       Verified by actually uninstalling `streamlit-webrtc` locally and
       confirming the app still boots and serves HTTP 200 rather than
       crashing. Full suite still green afterward.
+- [x] `core/__init__.py` — **the actual cause of the dashboard showing a
+      completely blank page**, found by reading the real Streamlit Cloud
+      deploy logs after the STUN/import fix above didn't help (as
+      expected in hindsight - that fix was in `dashboard/app.py`, a file
+      that was never actually being served). The logs showed Streamlit
+      Cloud's configured "main file path" for this deployment is
+      `core/__init__.py`, an empty file - so it loaded, ran nothing,
+      threw no error, and rendered nothing, every time. That setting
+      isn't editable from the current Streamlit Cloud Settings UI (no
+      "main file path" field exists there any more, only App URL/Python
+      version/Sharing/Secrets), and deleting and recreating the app to
+      fix it would assign a new random URL, breaking every link already
+      shared to this one. Fixed by having `core/__init__.py` hand off to
+      `dashboard/app.py` via `runpy.run_path()`, guarded by
+      `if __name__ == "__main__"` so it only fires when Streamlit
+      actually executes this file as the app's entry point - never for
+      the constant ordinary `from core.X import Y` imports used
+      throughout the test suite and the rest of the codebase.
+      Verified two ways: the full test suite still passes unchanged
+      (113/113 - confirming the guard doesn't affect normal imports), and
+      a local `streamlit run core/__init__.py` (reproducing exactly what
+      Streamlit Cloud runs) was screenshotted actually rendering the real
+      dashboard - sidebar, camera form, language picker and all - instead
+      of a blank page.
 - [x] `web/src/i18n.js` — language picker on the on-device page, matching
       the dashboard's 4 languages (English, Hindi, Spanish, Mandarin).
       Placed as the very first thing on the page, above the title. Covers
