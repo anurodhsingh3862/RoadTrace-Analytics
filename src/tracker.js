@@ -18,15 +18,37 @@ function iou(a, b) {
   return union > 0 ? intersection / union : 0;
 }
 
+function centerDistanceRatio(a, b) {
+  const ax = (a.x1 + a.x2) / 2;
+  const ay = (a.y1 + a.y2) / 2;
+  const bx = (b.x1 + b.x2) / 2;
+  const by = (b.y1 + b.y2) / 2;
+  const dist = Math.hypot(ax - bx, ay - by);
+  const sizeA = Math.max(a.x2 - a.x1, a.y2 - a.y1);
+  const sizeB = Math.max(b.x2 - b.x1, b.y2 - b.y1);
+  const avgSize = (sizeA + sizeB) / 2;
+  return avgSize > 0 ? dist / avgSize : Infinity;
+}
+
 export class IouTracker {
   /**
    * @param {object} options
    * @param {number} options.iouThreshold - minimum IoU to match a detection to an existing track.
    * @param {number} options.maxMissedFrames - frames a track can go unmatched before it's dropped.
+   * @param {number} options.centroidFallbackMaxRatio - how far a box's
+   *   center may jump between frames, relative to its own longer side,
+   *   before the centroid fallback (used when IoU finds no overlap at all)
+   *   gives up on it being the same vehicle. 2x is generous enough to
+   *   survive a phone running inference at just a couple of frames per
+   *   second with a car crossing the frame quickly, while still being
+   *   bounded — a jump bigger than that is genuinely ambiguous to tell
+   *   apart from a different, nearby vehicle without real motion
+   *   prediction, so it's left as a new track instead of guessed at.
    */
-  constructor({ iouThreshold = 0.3, maxMissedFrames = 10 } = {}) {
+  constructor({ iouThreshold = 0.3, maxMissedFrames = 10, centroidFallbackMaxRatio = 2 } = {}) {
     this.iouThreshold = iouThreshold;
     this.maxMissedFrames = maxMissedFrames;
+    this.centroidFallbackMaxRatio = centroidFallbackMaxRatio;
     this.tracks = new Map(); // id -> { box, missed, classId, className }
     this.nextId = 1;
   }
@@ -39,13 +61,31 @@ export class IouTracker {
     const unmatchedDetections = new Set(detections.map((_, i) => i));
     const matchedTrackIds = new Set();
 
-    // Greedy best-IoU-first matching, existing tracks to this frame's detections.
+    // Greedy best-IoU-first matching, existing tracks to this frame's
+    // detections. When two frames are spaced far enough apart in time that
+    // a fast-moving (or close/large) vehicle's box no longer overlaps its
+    // previous position at all — easy to hit on a phone, where model
+    // inference can run at just a couple of frames per second — IoU alone
+    // would hand it a brand-new track id every single frame. That silently
+    // breaks anything keyed on track identity across frames, most notably
+    // speed estimation (AutoSpeedEstimator needs 2+ samples under the SAME
+    // id). So a track with no IoU match also gets a centroid-distance
+    // fallback, scaled by box size: a positive (real) IoU score always
+    // outranks a fallback one, but a fallback still lets a track survive
+    // a frame where it moved too far to overlap at all.
     const candidates = [];
     for (const [trackId, track] of this.tracks) {
       for (let i = 0; i < detections.length; i++) {
         if (detections[i].classId !== track.classId) continue;
-        const score = iou(track.box, detections[i]);
-        if (score >= this.iouThreshold) candidates.push({ trackId, detIndex: i, score });
+        const overlap = iou(track.box, detections[i]);
+        if (overlap >= this.iouThreshold) {
+          candidates.push({ trackId, detIndex: i, score: overlap });
+          continue;
+        }
+        const ratio = centerDistanceRatio(track.box, detections[i]);
+        if (ratio <= this.centroidFallbackMaxRatio) {
+          candidates.push({ trackId, detIndex: i, score: -ratio }); // always < any real IoU score
+        }
       }
     }
     candidates.sort((a, b) => b.score - a.score);
