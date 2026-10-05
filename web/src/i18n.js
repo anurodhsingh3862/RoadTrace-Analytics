@@ -52,6 +52,8 @@ const STRINGS = {
 
     hud_vehicles_title: "Vehicles now",
     hud_stats_title: "Live stats",
+    hud_avg_speed_label: "Average speed (estimated)",
+    hud_speed_disclaimer: "Speeds are an automatic estimate based on typical vehicle size, not a calibrated measurement.",
     hud_flow_label: "Flow",
     hud_flow_format: "{count} veh/min",
     hud_confidence_label: "Detection confidence",
@@ -175,6 +177,8 @@ const STRINGS = {
 
     hud_vehicles_title: "अभी के वाहन",
     hud_stats_title: "लाइव आँकड़े",
+    hud_avg_speed_label: "औसत गति (अनुमानित)",
+    hud_speed_disclaimer: "गति सामान्य वाहन आकार पर आधारित एक स्वचालित अनुमान है, सटीक माप नहीं।",
     hud_flow_label: "प्रवाह",
     hud_flow_format: "{count} वाहन/मिनट",
     hud_confidence_label: "पहचान सटीकता",
@@ -298,6 +302,8 @@ const STRINGS = {
 
     hud_vehicles_title: "Vehículos ahora",
     hud_stats_title: "Estadísticas en vivo",
+    hud_avg_speed_label: "Velocidad promedio (estimada)",
+    hud_speed_disclaimer: "Las velocidades son una estimación automática basada en el tamaño típico del vehículo, no una medición calibrada.",
     hud_flow_label: "Flujo",
     hud_flow_format: "{count} veh/min",
     hud_confidence_label: "Confianza de detección",
@@ -421,6 +427,8 @@ const STRINGS = {
 
     hud_vehicles_title: "当前车辆",
     hud_stats_title: "实时统计",
+    hud_avg_speed_label: "平均速度(估计值)",
+    hud_speed_disclaimer: "速度是根据典型车辆尺寸自动估算的,并非精确测量。",
     hud_flow_label: "车流量",
     hud_flow_format: "{count} 辆/分钟",
     hud_confidence_label: "检测置信度",

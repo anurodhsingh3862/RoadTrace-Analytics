@@ -48,9 +48,11 @@
     .hud-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin-bottom: 12px; }
     @media (max-width: 700px) { .hud-grid { grid-template-columns: 1fr; } }
 
-    .hud-vehicle-row { display: flex; justify-content: space-between; padding: 8px 4px; border-bottom: 1px solid var(--rt-divider); font-size: 0.9rem; }
+    .hud-vehicle-row { display: flex; align-items: center; gap: 10px; padding: 8px 4px; border-bottom: 1px solid var(--rt-divider); font-size: 0.9rem; }
     .hud-vehicle-row:last-child { border-bottom: none; }
-    .hud-vehicle-count { font-weight: 700; color: var(--rt-accent); }
+    .hud-vehicle-label { flex: 1; }
+    .hud-vehicle-speed { color: var(--rt-muted); font-size: 0.82rem; white-space: nowrap; }
+    .hud-vehicle-count { font-weight: 700; color: var(--rt-accent); min-width: 18px; text-align: right; }
     .hud-vehicle-empty { color: var(--rt-muted); font-size: 0.85rem; padding: 8px 4px; }
 
     .hud-stat-row { margin-bottom: 10px; }
@@ -62,6 +64,8 @@
     .hud-stat-fill { height: 100%; border-radius: 999px; background: var(--rt-accent-2); transition: width 0.6s ease; }
 
     .chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+    .chip-row.compact { margin: 0 0 10px; }
+    .hud-disclaimer { font-size: 0.72rem; color: var(--rt-muted); margin: 10px 0 0; }
 
     .context-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 12px; }
     .context-item { background: var(--rt-ground); border-radius: 12px; padding: 10px 12px; }
@@ -115,6 +119,14 @@
       </div>
       <div class="rt-card">
         <div class="rt-card-title" data-i18n="hud_stats_title">Live stats</div>
+        <div class="chip-row compact" id="speed-units">
+          <button class="rt-chip unit-chip" type="button" data-unit-group="speed" data-unit="mph">mph</button>
+          <button class="rt-chip unit-chip" type="button" data-unit-group="speed" data-unit="kmh">km/h</button>
+        </div>
+        <div class="hud-stat-row">
+          <div class="hud-stat-head"><span class="k" data-i18n="hud_avg_speed_label">Average speed (estimated)</span><span class="v" id="stat-speed-value">—</span></div>
+          <div class="hud-stat-track"><div class="hud-stat-fill" id="stat-speed-bar" style="width:0%"></div></div>
+        </div>
         <div class="hud-stat-row">
           <div class="hud-stat-head"><span class="k" data-i18n="hud_flow_label">Flow</span><span class="v" id="stat-flow-value">0 veh/min</span></div>
           <div class="hud-stat-track"><div class="hud-stat-fill" id="stat-flow-bar" style="width:0%"></div></div>
@@ -123,6 +135,7 @@
           <div class="hud-stat-head"><span class="k" data-i18n="hud_confidence_label">Detection confidence</span><span class="v" id="stat-confidence-value">—</span></div>
           <div class="hud-stat-track"><div class="hud-stat-fill" id="stat-confidence-bar" style="width:0%"></div></div>
         </div>
+        <p class="hud-disclaimer" data-i18n="hud_speed_disclaimer">Speeds are an automatic estimate based on typical vehicle size, not a calibrated measurement.</p>
       </div>
     </div>
 

@@ -378,6 +378,28 @@ than as one large change.
     smoke test confirming no calibration elements remain, the stats
     panel renders, and language switching still works.
 
+  - **Added an automatic, uncalibrated speed estimate back to the live
+    camera page.** After removing the manual two-point calibration flow
+    entirely (above), the page had no speed at all — only vehicle
+    counting/classification. Rather than bring back any tap-to-calibrate
+    step, `web/src/speed.js` gained a new `AutoSpeedEstimator`: it scales
+    each vehicle's pixel displacement between frames using a typical
+    real-world width for its detected class (car/truck/bus/motorcycle),
+    no setup required. This is a rough approximation, not a measurement —
+    it assumes the vehicle is roughly broadside to the camera and close
+    to an average size for its class — so it's always shown with an
+    explicit "estimated" label and a one-line disclaimer, never presented
+    as exact. Speed is shown per vehicle class (grouped, not per
+    individual vehicle, keeping the no-identity-data principle), in the
+    "Vehicles now" list, on each overlay label, and as an overall average
+    in the "Live stats" card, with a shared mph/km-h unit toggle that was
+    also missing from the removed flow. 15 new unit tests on
+    `AutoSpeedEstimator` (metersPerPixel scaling, per-class width
+    assumptions, windowing, reset, stale-track pruning) plus a Playwright
+    smoke test confirming the unit toggle, labels, and translations all
+    work. The manual `Calibration`/`SpeedEstimator` classes are untouched
+    and still available if a future calibrated mode is wanted here.
+
 ## Planned, in order
 1. **A road-level crash dataset** — the actual remaining prerequisite for
    `risk_context.py` to become a real risk model instead of "measured
