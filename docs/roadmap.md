@@ -99,21 +99,30 @@ than as one large change.
       records *fatal* crashes (a county with zero on file is "zero fatal
       crashes on record", not "safe"). Both the module docstring and the
       dashboard say this every time the number is shown.
-      Every live call made to the CrashAPI during initial development (from
-      the sandbox shell and from the fetch tool used to verify the other
-      adapters) was rejected with HTTP 403. **Root-caused 2026-10-05**: the
-      host's Akamai/edgesuite WAF rejects `requests`' default User-Agent
-      string specifically, not the API itself — confirmed by the user
-      hitting the endpoint directly from their own machine and seeing the
-      exact "Access Denied" WAF page. Fixed by sending a normal
-      browser-like User-Agent header. Still needs one more confirmation
-      run — the header fix should resolve the 403, but the actual JSON
-      shape (built defensively from NHTSA's documented FARS field-naming
-      conventions) hasn't been seen on a real success response yet: run
+      Every live call made to NHTSA's **CrashAPI** (`crashviewer.nhtsa.dot.gov`)
+      during development was rejected with HTTP 403 from an Akamai/edgesuite
+      WAF — including after sending a normal browser-like `User-Agent`
+      header, which was the first attempted fix (2026-10-05) and was
+      **confirmed insufficient** by a second live test from the user's own
+      machine, which got a fresh 403 with a new Akamai reference ID. That
+      points to bot-detection below the HTTP-header level (TLS/JA3
+      fingerprinting or similar), which a `requests`-header change can't
+      get around.
+      **Switched (2026-10-05) to NHTSA's static bulk-file archive instead**:
+      `static.nhtsa.gov` hosts the entire FARS dataset as plain yearly ZIP
+      files, no key, no bot-protection — a different host than the CrashAPI,
+      confirmed reachable during development (a real multi-megabyte ZIP
+      came back, not a WAF page). The adapter now downloads and caches one
+      year's national file (`~/.cache/roadtrace_fars`, one download per
+      year, reused for every county/year lookup after) and counts matching
+      rows itself instead of querying an API.
+      Still needs a real-network confirmation run — the ZIP's structure was
+      built against NHTSA's documented FARS file-naming conventions but
+      hasn't been downloaded and parsed for real yet: run
       `python -m data_layers.crash_data <state_fips> <county_fips> <year>`
-      and check the printed count against NHTSA's own published tables.
-      9/9 tests (mocked HTTP, including a regression guard on the
-      User-Agent header) passing.
+      (the first run per year downloads tens of MB, so it's slower than
+      later ones) and check the printed count against NHTSA's own published
+      tables. 10/10 tests (mocked HTTP + an in-memory ZIP fixture) passing.
 
 ## Planned, in order
 1. **A road-level crash dataset** — the actual remaining prerequisite for
