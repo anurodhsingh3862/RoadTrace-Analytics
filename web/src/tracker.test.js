@@ -51,3 +51,35 @@ test("two nearby same-class vehicles get distinct ids, not merged", () => {
   assert.equal(first.length, 2);
   assert.notEqual(first[0].trackId, first[1].trackId);
 });
+
+test("a fast-moving vehicle with zero box overlap between frames still keeps its track id", () => {
+  // Simulates slow inference (a couple of frames per second on a phone)
+  // relative to how fast the vehicle crosses the frame: by the next
+  // detection, the box has moved past its own width, so IoU is exactly 0.
+  // Without the centroid-distance fallback this used to hand out a brand
+  // new track id every frame, which silently broke speed estimation
+  // (AutoSpeedEstimator needs 2+ samples under the same id).
+  const tracker = new IouTracker();
+  const [a] = tracker.update([det(2, 0, 0, 40, 20)]);
+  const [b] = tracker.update([det(2, 50, 0, 90, 20)]); // no x overlap: 40 < 50
+  assert.equal(a.trackId, b.trackId);
+});
+
+test("the centroid fallback still gives an unrelated far-away vehicle its own id", () => {
+  const tracker = new IouTracker();
+  const first = tracker.update([det(2, 0, 0, 40, 20)]);
+  const second = tracker.update([det(2, 500, 500, 540, 520)]); // nowhere near a plausible same-vehicle jump
+  assert.notEqual(first[0].trackId, second[0].trackId);
+});
+
+test("the centroid fallback prefers the closer of two candidate detections", () => {
+  const tracker = new IouTracker();
+  const [a] = tracker.update([det(2, 0, 0, 40, 20)]);
+  // Neither overlaps the original box, but the first is a much smaller,
+  // more plausible jump than the second.
+  const second = tracker.update([det(2, 55, 0, 95, 20), det(2, 300, 0, 340, 20)]);
+  const closer = second.find((d) => d.x1 === 55);
+  const farther = second.find((d) => d.x1 === 300);
+  assert.equal(closer.trackId, a.trackId);
+  assert.notEqual(farther.trackId, a.trackId);
+});
