@@ -66,5 +66,7 @@
   "label_live_point2": "Punto 2 x, y (píxeles)",
   "label_live_distance": "Distancia real entre esos puntos (metros)",
   "metric_live_vehicles": "Vehículos contados en esta sesión",
-  "text_live_speeds": "Velocidades actuales: {speeds}"
+  "text_live_speeds": "Velocidades actuales: {speeds}",
+  "caption_live_network_note": "Necesita permiso de cámara y funciona mejor con Wi-Fi: esta configuración gratuita no siempre puede atravesar las redes de datos móviles. Si \"Start\" no se conecta después de unos segundos, prueba con una conexión Wi-Fi.",
+  "warning_live_camera_unavailable": "La cámara en vivo no está disponible en este despliegue en este momento (un paquete requerido no se cargó). Subir un video arriba sigue funcionando normalmente."
 }

@@ -107,6 +107,8 @@
       color: #e8edf5;
     }
     #calib-hint { font-size: 0.85rem; color: #ffd27a; min-height: 1.2em; }
+    .lang-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+    .lang-row .lang-label { color: #9fb3c8; font-size: 0.85rem; }
     details { margin-top: 12px; }
     summary { cursor: pointer; color: #9fb3c8; font-size: 0.85rem; }
     .context-grid {
@@ -147,18 +149,21 @@
   </style>
 </head>
 <body>
+  <div class="lang-row" id="lang-row">
+    <span class="lang-label" data-i18n="language_label">Language</span>
+  </div>
   <h1>🚗 RoadTrace Analytics</h1>
-  <p class="subtitle">
+  <p class="subtitle" data-i18n="subtitle">
     Point your camera at a road. It counts vehicles and guesses their speed —
     all on this device. Nothing is uploaded anywhere.
   </p>
-  <p id="status">Loading...</p>
+  <p id="status" data-i18n="status_loading">Loading...</p>
 
   <div class="card">
-    <h2><span class="step-num">1</span> Start watching traffic</h2>
-    <p>Use your camera, or upload a video you already have.</p>
-    <button id="camera-button" class="big-button" type="button">📷 Use my camera</button>
-    <button id="file-button" class="big-button secondary" type="button">🎬 Upload a video</button>
+    <h2><span class="step-num">1</span> <span data-i18n="card1_title">Start watching traffic</span></h2>
+    <p data-i18n="card1_desc">Use your camera, or upload a video you already have.</p>
+    <button id="camera-button" class="big-button" type="button" data-i18n="camera_button">📷 Use my camera</button>
+    <button id="file-button" class="big-button secondary" type="button" data-i18n="file_button">🎬 Upload a video</button>
     <input type="file" id="file-input" accept="video/*" style="display:none" />
   </div>
 
@@ -168,61 +173,61 @@
   </div>
 
   <div class="card">
-    <h2><span class="step-num">2</span> Measure speed (optional)</h2>
-    <p>
+    <h2><span class="step-num">2</span> <span data-i18n="card2_title">Measure speed (optional)</span></h2>
+    <p data-i18n="card2_desc">
       Pick two spots in the video where you know the real distance between
       them — like two lamp posts, or the width of a parking space. You'll
       still see boxes around every vehicle even if you skip this step; you
       just won't see a speed number.
     </p>
-    <button id="calibrate-button" class="big-button" type="button">📏 Tap two spots</button>
-    <button id="skip-calibrate-button" class="big-button secondary" type="button">Skip — no speed needed</button>
+    <button id="calibrate-button" class="big-button" type="button" data-i18n="calibrate_button">📏 Tap two spots</button>
+    <button id="skip-calibrate-button" class="big-button secondary" type="button" data-i18n="skip_calibrate_button">Skip — no speed needed</button>
     <p id="calib-hint"></p>
 
     <div id="distance-picker" style="display:none;">
-      <p style="margin-top:14px;">How far apart are those two spots, really?</p>
+      <p style="margin-top:14px;" data-i18n="distance_picker_title">How far apart are those two spots, really?</p>
       <div class="chip-row">
-        <button class="chip" type="button" data-meters="3">3 m (a parked car)</button>
-        <button class="chip" type="button" data-meters="5">5 m</button>
-        <button class="chip" type="button" data-meters="10">10 m</button>
-        <button class="chip" type="button" data-meters="20">20 m</button>
+        <button class="chip" type="button" data-meters="3" data-i18n="chip_3m">3 m (a parked car)</button>
+        <button class="chip" type="button" data-meters="5" data-i18n="chip_5m">5 m</button>
+        <button class="chip" type="button" data-meters="10" data-i18n="chip_10m">10 m</button>
+        <button class="chip" type="button" data-meters="20" data-i18n="chip_20m">20 m</button>
       </div>
       <div class="custom-distance">
-        <input id="custom-distance" type="number" min="0.1" step="0.1" placeholder="other" />
-        <span>meters</span>
-        <button id="custom-distance-set" class="big-button secondary" type="button">Set</button>
+        <input id="custom-distance" type="number" min="0.1" step="0.1" placeholder="other" data-i18n-placeholder="custom_distance_placeholder" />
+        <span data-i18n="meters_label">meters</span>
+        <button id="custom-distance-set" class="big-button secondary" type="button" data-i18n="set_button">Set</button>
       </div>
     </div>
 
     <details>
-      <summary>Advanced: type exact pixel coordinates instead</summary>
+      <summary data-i18n="advanced_summary">Advanced: type exact pixel coordinates instead</summary>
       <form id="calibration-form" class="advanced-grid">
-        <label>Point 1 x, y (pixels)</label>
+        <label data-i18n="label_point1">Point 1 x, y (pixels)</label>
         <div style="display:flex; gap:4px;">
           <input name="p1x" type="number" value="0" />
           <input name="p1y" type="number" value="0" />
         </div>
-        <label>Point 2 x, y (pixels)</label>
+        <label data-i18n="label_point2">Point 2 x, y (pixels)</label>
         <div style="display:flex; gap:4px;">
           <input name="p2x" type="number" value="100" />
           <input name="p2y" type="number" value="0" />
         </div>
-        <label>Real-world distance between the points (meters)</label>
+        <label data-i18n="label_distance">Real-world distance between the points (meters)</label>
         <input name="distance" type="number" value="10" step="0.1" />
-        <button type="submit" class="big-button secondary" style="margin-top:10px;">Set calibration</button>
+        <button type="submit" class="big-button secondary" style="margin-top:10px;" data-i18n="set_calibration_button">Set calibration</button>
       </form>
     </details>
   </div>
 
   <div class="card">
-    <h2>🌍 Road safety near you</h2>
-    <p>
+    <h2 data-i18n="card3_title">🌍 Road safety near you</h2>
+    <p data-i18n="card3_desc">
       See official road-safety numbers for your area: your country's road
       death rate, the posted speed limit nearby, and current weather and
       air quality. Your browser asks these public sources directly —
       nothing goes through us, same as everything else on this page.
     </p>
-    <button id="context-button" class="big-button secondary" type="button">📍 Show info for my location</button>
+    <button id="context-button" class="big-button secondary" type="button" data-i18n="context_button">📍 Show info for my location</button>
     <p id="context-note"></p>
     <div id="context-units" class="chip-row" style="display:none;">
       <button class="chip unit-chip" type="button" data-unit-group="temp" data-unit="c">°C</button>
@@ -232,59 +237,59 @@
     </div>
     <div id="context-grid" class="context-grid" style="display:none;">
       <div class="context-item">
-        <p class="context-label">Country road deaths</p>
+        <p class="context-label" data-i18n="label_worldbank">Country road deaths</p>
         <p class="context-value" id="context-worldbank">—</p>
       </div>
       <div class="context-item">
-        <p class="context-label">WHO estimate</p>
+        <p class="context-label" data-i18n="label_who">WHO estimate</p>
         <p class="context-value" id="context-who">—</p>
       </div>
       <div class="context-item">
-        <p class="context-label">Posted speed limit nearby</p>
+        <p class="context-label" data-i18n="label_speedlimit">Posted speed limit nearby</p>
         <p class="context-value" id="context-speedlimit">—</p>
       </div>
       <div class="context-item">
-        <p class="context-label">Weather right now</p>
+        <p class="context-label" data-i18n="label_weather">Weather right now</p>
         <p class="context-value" id="context-weather">—</p>
       </div>
       <div class="context-item">
-        <p class="context-label">Feels like</p>
+        <p class="context-label" data-i18n="label_feelslike">Feels like</p>
         <p class="context-value" id="context-feelslike">—</p>
       </div>
       <div class="context-item">
-        <p class="context-label">Humidity</p>
+        <p class="context-label" data-i18n="label_humidity">Humidity</p>
         <p class="context-value" id="context-humidity">—</p>
       </div>
       <div class="context-item">
-        <p class="context-label">Wind</p>
+        <p class="context-label" data-i18n="label_wind">Wind</p>
         <p class="context-value" id="context-wind">—</p>
       </div>
       <div class="context-item">
-        <p class="context-label">Visibility</p>
+        <p class="context-label" data-i18n="label_visibility">Visibility</p>
         <p class="context-value" id="context-visibility">—</p>
       </div>
       <div class="context-item">
-        <p class="context-label">Sunrise / sunset</p>
+        <p class="context-label" data-i18n="label_sun">Sunrise / sunset</p>
         <p class="context-value" id="context-sun">—</p>
       </div>
       <div class="context-item">
-        <p class="context-label">UV index (today's max)</p>
+        <p class="context-label" data-i18n="label_uv">UV index (today's max)</p>
         <p class="context-value" id="context-uv">—</p>
       </div>
       <div class="context-item">
-        <p class="context-label">Precipitation today</p>
+        <p class="context-label" data-i18n="label_precip">Precipitation today</p>
         <p class="context-value" id="context-precip">—</p>
       </div>
       <div class="context-item">
-        <p class="context-label">Air quality (US AQI)</p>
+        <p class="context-label" data-i18n="label_aqi">Air quality (US AQI)</p>
         <p class="context-value" id="context-aqi">—</p>
       </div>
     </div>
   </div>
 
   <div class="card">
-    <h2>📊 Want deeper analysis?</h2>
-    <p>
+    <h2 data-i18n="card4_title">📊 Want deeper analysis?</h2>
+    <p data-i18n="card4_desc">
       This page is a quick, one-camera, on-device demo. The full
       dashboard handles multiple camera videos combined together, speed
       vs. weather tables, US county crash-data, and a language picker
@@ -296,6 +301,7 @@
       rel="noopener"
       class="big-button secondary"
       style="display:inline-block; text-decoration:none; text-align:center;"
+      data-i18n="open_dashboard_button"
     >🚀 Open the full dashboard</a>
   </div>
 

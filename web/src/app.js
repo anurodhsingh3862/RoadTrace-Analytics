@@ -14,8 +14,72 @@ import { IouTracker } from "./tracker.js";
 import { Calibration, SpeedEstimator } from "./speed.js";
 import { MODEL_INPUT_SIZE } from "./postprocess.js";
 import { fetchRoadSafetyContext, cToF, kmhToMph, mmToIn, metersToMiles, compassDirection, aqiCategory } from "./context.js";
+import {
+  SUPPORTED_LANGUAGES,
+  t,
+  getLanguage,
+  setLanguage,
+  detectInitialLanguage,
+  weatherLabel,
+  localizedAqiCategory,
+  localizedCompass,
+} from "./i18n.js";
 
 const MPH_TO_KMH = 1.609344;
+
+// --- Language picker ----------------------------------------------------
+// First thing on the page, per the on-device page getting the same
+// language choice the dashboard already has. Selection is remembered in
+// this browser only (localStorage), same spirit as the unit toggle below.
+
+const langRow = document.getElementById("lang-row");
+for (const [code, label] of Object.entries(SUPPORTED_LANGUAGES)) {
+  const chip = document.createElement("button");
+  chip.type = "button";
+  chip.className = "chip lang-chip";
+  chip.textContent = label;
+  chip.dataset.lang = code;
+  chip.addEventListener("click", () => applyLanguage(code));
+  langRow.appendChild(chip);
+}
+
+function updateLangChipState() {
+  const current = getLanguage();
+  for (const chip of langRow.querySelectorAll(".lang-chip")) {
+    chip.classList.toggle("active", chip.dataset.lang === current);
+  }
+}
+
+function localizeStaticText() {
+  for (const el of document.querySelectorAll("[data-i18n]")) {
+    el.textContent = t(el.dataset.i18n);
+  }
+  for (const el of document.querySelectorAll("[data-i18n-placeholder]")) {
+    el.placeholder = t(el.dataset.i18nPlaceholder);
+  }
+  document.title = t("doc_title");
+  document.documentElement.lang = getLanguage();
+}
+
+// Declared here (rather than down by the rest of the road-safety-context
+// code that reads it) so applyLanguage() can safely reference it below,
+// including on the very first call made at page-load time.
+let lastContext = null;
+
+function applyLanguage(code) {
+  setLanguage(code);
+  localizeStaticText();
+  updateLangChipState();
+  // Re-render anything already on screen that holds live, language-specific
+  // text, so switching languages mid-use doesn't leave stale English stuck
+  // in a status line or the road-safety grid.
+  if (lastContext) renderRoadSafetyContext(lastContext);
+}
+
+// Apply the remembered (or browser-default) language before anything else
+// renders, so the very first status message and card text are already in
+// the right language rather than flashing English first.
+applyLanguage(detectInitialLanguage());
 
 const video = document.getElementById("source");
 const overlay = document.getElementById("overlay");
@@ -64,14 +128,14 @@ function videoPointFromClick(event) {
 
 function startPicking() {
   if (!video.videoWidth) {
-    calibHint.textContent = "Start the camera or a video first, then tap two spots on it.";
+    calibHint.textContent = t("hint_start_first");
     return;
   }
   picking = true;
   pickedPoints = [];
   distancePicker.style.display = "none";
   overlay.classList.add("pickable");
-  calibHint.textContent = "Tap the first spot on the video.";
+  calibHint.textContent = t("hint_tap_first");
 }
 
 function handleOverlayClick(event) {
@@ -80,11 +144,11 @@ function handleOverlayClick(event) {
   const point = videoPointFromClick(event);
   pickedPoints.push(point);
   if (pickedPoints.length === 1) {
-    calibHint.textContent = "Good. Now tap the second spot.";
+    calibHint.textContent = t("hint_tap_second");
   } else {
     picking = false;
     overlay.classList.remove("pickable");
-    calibHint.textContent = "Spots marked. Now tell us the real distance between them.";
+    calibHint.textContent = t("hint_spots_marked");
     distancePicker.style.display = "block";
   }
 }
@@ -93,10 +157,10 @@ function finishCalibration(distanceMeters) {
   try {
     const calibration = new Calibration(pickedPoints[0], pickedPoints[1], distanceMeters);
     speedEstimator = new SpeedEstimator(calibration);
-    calibHint.textContent = "All set! Speeds will show up once a vehicle drives through.";
+    calibHint.textContent = t("hint_all_set");
     distancePicker.style.display = "none";
   } catch (err) {
-    calibHint.textContent = "Those two spots were too close together. Try tapping again, further apart.";
+    calibHint.textContent = t("hint_too_close");
   }
 }
 
@@ -108,7 +172,7 @@ skipCalibrateButton.addEventListener("click", () => {
   overlay.classList.remove("pickable");
   distancePicker.style.display = "none";
   speedEstimator = new SpeedEstimator(null);
-  calibHint.textContent = "Okay — you'll see boxes around vehicles, without a speed number.";
+  calibHint.textContent = t("hint_skip");
 });
 
 overlay.addEventListener("click", handleOverlayClick);
@@ -120,7 +184,7 @@ for (const chip of distancePicker.querySelectorAll(".chip")) {
 customDistanceSetButton.addEventListener("click", () => {
   const meters = Number(customDistanceInput.value);
   if (!(meters > 0)) {
-    calibHint.textContent = "Enter a distance greater than zero.";
+    calibHint.textContent = t("hint_distance_invalid");
     return;
   }
   finishCalibration(meters);
@@ -137,9 +201,9 @@ calibrationForm.addEventListener("submit", (event) => {
   try {
     const calibration = new Calibration(p1, p2, distance);
     speedEstimator = new SpeedEstimator(calibration);
-    calibHint.textContent = "Calibration set from exact coordinates.";
+    calibHint.textContent = t("hint_advanced_set");
   } catch (err) {
-    calibHint.textContent = `Calibration error: ${err.message}`;
+    calibHint.textContent = t("hint_advanced_error", { message: err.message });
   }
 });
 
@@ -153,7 +217,7 @@ fileInput.addEventListener("change", () => {
   video.srcObject = null;
   video.src = URL.createObjectURL(file);
   video.play();
-  setStatus("Playing your video. Vehicles will get a box once they're spotted.");
+  setStatus(t("status_playing_file"));
 });
 
 cameraButton.addEventListener("click", async () => {
@@ -162,9 +226,9 @@ cameraButton.addEventListener("click", async () => {
     video.src = "";
     video.srcObject = stream;
     await video.play();
-    setStatus("Camera on. Vehicles will get a box once they're spotted.");
+    setStatus(t("status_camera_on"));
   } catch (err) {
-    setStatus("Couldn't open the camera — check that you allowed camera access for this page.");
+    setStatus(t("status_camera_error"));
   }
 });
 
@@ -219,24 +283,21 @@ async function frameLoop() {
 }
 
 async function main() {
-  setStatus("Getting the vehicle-spotting brain ready...");
+  setStatus(t("status_model_loading"));
   await detector.load("models/yolo11n.onnx");
-  setStatus("Ready! Use your camera or upload a video to start.");
+  setStatus(t("status_ready"));
   running = true;
   requestAnimationFrame(frameLoop);
 }
 
-main().catch(() => setStatus("Something went wrong loading the model. Try reloading the page."));
+main().catch(() => setStatus(t("status_model_error")));
 
 // --- Road safety context (World Bank/WHO/OSM/weather, client-side) ----
-
-const WEATHER_CODE_LABELS = {
-  0: "Clear", 1: "Mostly clear", 2: "Partly cloudy", 3: "Overcast",
-  45: "Fog", 48: "Fog", 51: "Light drizzle", 53: "Drizzle", 55: "Heavy drizzle",
-  61: "Light rain", 63: "Rain", 65: "Heavy rain", 71: "Light snow", 73: "Snow",
-  75: "Heavy snow", 80: "Rain showers", 81: "Rain showers", 82: "Violent rain showers",
-  95: "Thunderstorm", 96: "Thunderstorm", 99: "Thunderstorm",
-};
+// Weather-code/AQI-category/compass labels are translated at render time
+// via i18n.js's weatherLabel()/localizedAqiCategory()/localizedCompass()
+// helpers, which key off context.js's own (always-English) return values —
+// context.js's tests pin those exact English strings, so they stay
+// untranslated there and only the on-screen label changes here.
 
 const contextButton = document.getElementById("context-button");
 const contextNote = document.getElementById("context-note");
@@ -260,9 +321,10 @@ function setContextField(el, text, available) {
   el.classList.toggle("unavailable", !available);
 }
 
-// Remembers the last fetch so switching °C/°F or km/h/mph just re-renders —
-// no need to ask the public sources again for a display-only change.
-let lastContext = null;
+// lastContext (remembers the last fetch so switching °C/°F or km/h/mph, or
+// switching language, just re-renders — no need to ask the public sources
+// again for a display-only change) is declared near the top of this file,
+// by the language picker, so it exists before applyLanguage()'s first call.
 const units = { temp: "c", speed: "kmh" };
 
 function formatTemp(celsius) {
@@ -285,71 +347,73 @@ function formatShortTime(isoString) {
 function renderRoadSafetyContext(context) {
   contextUnits.style.display = "flex";
   contextGrid.style.display = "grid";
+  const notAvailable = t("value_not_available");
 
   if (context.worldBank) {
-    setContextField(contextWorldBank, `${context.worldBank.deathsPer100k}/100k (${context.worldBank.year}, World Bank)`, true);
+    setContextField(contextWorldBank, t("wb_rate_format", { rate: context.worldBank.deathsPer100k, year: context.worldBank.year }), true);
   } else {
-    setContextField(contextWorldBank, "Not available", false);
+    setContextField(contextWorldBank, notAvailable, false);
   }
 
   if (context.who) {
-    setContextField(contextWho, `${context.who.deathsPer100k}/100k (${context.who.year})`, true);
+    setContextField(contextWho, t("who_rate_format", { rate: context.who.deathsPer100k, year: context.who.year }), true);
   } else {
-    setContextField(contextWho, "Not available", false);
+    setContextField(contextWho, notAvailable, false);
   }
 
   if (context.speedLimit && context.speedLimit.maxspeedKmh != null) {
     setContextField(contextSpeedLimit, formatSpeed(context.speedLimit.maxspeedKmh), true);
   } else {
-    setContextField(contextSpeedLimit, "No tagged road nearby", false);
+    setContextField(contextSpeedLimit, t("value_no_road"), false);
   }
 
   const w = context.weather;
   if (w) {
-    const label = WEATHER_CODE_LABELS[w.weathercode] || "Current";
+    const label = weatherLabel(w.weathercode);
     setContextField(contextWeather, `${label}, ${formatTemp(w.temperatureC)}`, true);
-    setContextField(contextFeelsLike, w.apparentTemperatureC != null ? formatTemp(w.apparentTemperatureC) : "Not available", w.apparentTemperatureC != null);
-    setContextField(contextHumidity, w.humidityPct != null ? `${Math.round(w.humidityPct)}%` : "Not available", w.humidityPct != null);
+    setContextField(contextFeelsLike, w.apparentTemperatureC != null ? formatTemp(w.apparentTemperatureC) : notAvailable, w.apparentTemperatureC != null);
+    setContextField(contextHumidity, w.humidityPct != null ? `${Math.round(w.humidityPct)}%` : notAvailable, w.humidityPct != null);
 
     if (w.windspeedKmh != null) {
       const dir = compassDirection(w.windDirectionDeg);
-      const gusts = w.windGustsKmh != null ? `, gusts ${formatSpeed(w.windGustsKmh)}` : "";
-      setContextField(contextWind, `${formatSpeed(w.windspeedKmh)}${dir ? " " + dir : ""}${gusts}`, true);
+      const localizedDir = dir ? localizedCompass(dir) : null;
+      const gusts = w.windGustsKmh != null ? t("gusts_suffix", { gusts: formatSpeed(w.windGustsKmh) }) : "";
+      setContextField(contextWind, `${formatSpeed(w.windspeedKmh)}${localizedDir ? " " + localizedDir : ""}${gusts}`, true);
     } else {
-      setContextField(contextWind, "Not available", false);
+      setContextField(contextWind, notAvailable, false);
     }
 
     if (w.visibilityM != null) {
       const text = units.speed === "mph" ? `${metersToMiles(w.visibilityM).toFixed(1)} mi` : `${(w.visibilityM / 1000).toFixed(1)} km`;
       setContextField(contextVisibility, text, true);
     } else {
-      setContextField(contextVisibility, "Not available", false);
+      setContextField(contextVisibility, notAvailable, false);
     }
 
     if (w.sunrise && w.sunset) {
       setContextField(contextSun, `${formatShortTime(w.sunrise)} / ${formatShortTime(w.sunset)}`, true);
     } else {
-      setContextField(contextSun, "Not available", false);
+      setContextField(contextSun, notAvailable, false);
     }
 
-    setContextField(contextUv, w.uvIndexMax != null ? `${w.uvIndexMax}` : "Not available", w.uvIndexMax != null);
+    setContextField(contextUv, w.uvIndexMax != null ? `${w.uvIndexMax}` : notAvailable, w.uvIndexMax != null);
 
     if (w.precipitationSumMm != null) {
       const text = units.speed === "mph" ? `${mmToIn(w.precipitationSumMm).toFixed(2)} in` : `${w.precipitationSumMm} mm`;
       setContextField(contextPrecip, text, true);
     } else {
-      setContextField(contextPrecip, "Not available", false);
+      setContextField(contextPrecip, notAvailable, false);
     }
   } else {
     for (const el of [contextWeather, contextFeelsLike, contextHumidity, contextWind, contextVisibility, contextSun, contextUv, contextPrecip]) {
-      setContextField(el, "Not available", false);
+      setContextField(el, notAvailable, false);
     }
   }
 
   if (context.airQuality && context.airQuality.usAqi != null) {
-    setContextField(contextAqi, `${context.airQuality.usAqi} (${aqiCategory(context.airQuality.usAqi)})`, true);
+    setContextField(contextAqi, t("aqi_format", { aqi: context.airQuality.usAqi, category: localizedAqiCategory(aqiCategory(context.airQuality.usAqi)) }), true);
   } else {
-    setContextField(contextAqi, "Not available", false);
+    setContextField(contextAqi, notAvailable, false);
   }
 }
 
@@ -369,24 +433,24 @@ contextUnits.querySelector('[data-unit-group="speed"][data-unit="kmh"]').classLi
 
 contextButton.addEventListener("click", () => {
   if (!("geolocation" in navigator)) {
-    contextNote.textContent = "Your browser doesn't support location, so this can't be shown.";
+    contextNote.textContent = t("note_no_geo");
     return;
   }
-  contextNote.textContent = "Asking for your location...";
+  contextNote.textContent = t("note_asking");
   navigator.geolocation.getCurrentPosition(
     async (position) => {
-      contextNote.textContent = "Looking up public sources for this location...";
+      contextNote.textContent = t("note_looking_up");
       const { latitude, longitude } = position.coords;
       try {
         lastContext = await fetchRoadSafetyContext(latitude, longitude);
         contextNote.textContent = "";
         renderRoadSafetyContext(lastContext);
       } catch {
-        contextNote.textContent = "Couldn't reach those sources right now — try again in a moment.";
+        contextNote.textContent = t("note_fetch_error");
       }
     },
     () => {
-      contextNote.textContent = "Location permission was denied, so this can't be shown.";
+      contextNote.textContent = t("note_denied");
     },
     { timeout: 10000 }
   );

@@ -160,6 +160,51 @@ than as one large change.
       smoke test (`streamlit run dashboard/app.py` serving HTTP 200 with
       no import errors), not a unit test, since it loads a real YOLO
       model at construction.
+      **Fixed (2026-10-05)**: the user reported the live dashboard
+      rendering completely blank on their phone right after this shipped.
+      Two real problems, confirmed against `streamlit-webrtc`'s own
+      documentation: (1) `webrtc_streamer()` was called with no
+      `rtc_configuration` at all — the library's docs explicitly warn
+      that Streamlit Community Cloud needs at least a STUN server
+      configured for the browser↔server video connection to traverse
+      NAT, so it likely never connected; (2) more importantly, the
+      `streamlit_webrtc`/`dashboard.live` import had no fallback, so if
+      that import failed for any reason on the live host (a missing
+      native dependency, a version mismatch), the exception took the
+      *entire* dashboard down with it — not just the live-camera tab.
+      Fixed by (a) adding a free Google STUN server to
+      `rtc_configuration` (zero-cost, no signup — stated honestly on
+      screen that it still may not be enough on carrier-grade mobile
+      networks, since a real TURN relay would need a paid/signed-up
+      service this project avoids), and (b) wrapping the risky import in
+      try/except so a failure there now shows a small "live camera
+      unavailable" notice in just that expander while the rest of the
+      dashboard (including uploading a video) keeps working regardless.
+      Verified by actually uninstalling `streamlit-webrtc` locally and
+      confirming the app still boots and serves HTTP 200 rather than
+      crashing. Full suite still green afterward.
+- [x] `web/src/i18n.js` — language picker on the on-device page, matching
+      the dashboard's 4 languages (English, Hindi, Spanish, Mandarin).
+      Placed as the very first thing on the page, above the title. Covers
+      every piece of static and dynamic on-screen text: card headers and
+      descriptions, button labels, calibration hints, the location-context
+      note, all 12 road-safety-grid field labels and their live values
+      (weather descriptions, AQI category, compass directions), and the
+      document title. Choice is remembered in this browser only
+      (`localStorage`), never sent anywhere, and persists across reloads.
+      Mirrors `dashboard/i18n.py`'s shape on purpose (same "fall back to
+      English, then to the key itself" behavior) even though this is
+      plain client-side JS with no build step.
+      Weather-code labels, AQI categories, and compass directions all stay
+      in `context.js` as plain, always-English values (its own tests pin
+      those exact strings) and are translated only at render time in
+      `app.js`, so the two layers stay decoupled.
+      12/12 new tests, including a parity test (mirroring
+      `dashboard/test_i18n.py`) that fails if any language's key set ever
+      drifts from English's. Verified end-to-end with a real headless
+      browser (Playwright): clicking each language chip updates every
+      visible string and the document title, and the choice survives a
+      page reload — screenshotted in Hindi, Spanish, and Mandarin.
 
 ## Planned, in order
 1. **A road-level crash dataset** — the actual remaining prerequisite for
