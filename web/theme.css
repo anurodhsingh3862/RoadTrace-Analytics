@@ -1,0 +1,184 @@
+/* Shared "Pit Lane" design tokens and base components, used by index.html
+   (landing), camera.html (live detection HUD), and dashboard.html (results
+   dashboard). One palette so the three pages read as one product instead of
+   three separately-styled demos.
+
+   Values are a hand-picked dark/orange palette in the spirit of a design
+   mockup the project was asked to match ("Pit Lane": dark charcoal ground,
+   #ff6b1f orange accent, #7fb0d6 blue as the secondary/positive accent) —
+   plain hex + rgba rather than the mockup's live color-mix() generator, so
+   it renders identically everywhere without relying on a CSS feature some
+   older browsers still lack. */
+
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap");
+
+:root {
+  --rt-canvas: #0b0b0d;
+  --rt-ground: #141417;
+  --rt-surface: #1c1c21;
+  --rt-surface-2: #26262c;
+  --rt-ink: #f3f1ee;
+  --rt-muted: rgba(243, 241, 238, 0.58);
+  --rt-muted-2: rgba(243, 241, 238, 0.38);
+  --rt-divider: rgba(243, 241, 238, 0.1);
+
+  --rt-accent: #ff6b1f;
+  --rt-accent-ink: #1c0f03;
+  --rt-accent-soft: rgba(255, 107, 31, 0.14);
+  --rt-accent-soft-2: rgba(255, 107, 31, 0.28);
+
+  --rt-accent-2: #7fb0d6;
+  --rt-accent-2-soft: rgba(127, 176, 214, 0.16);
+
+  --rt-danger: #ff6b6b;
+  --rt-track: #34343c;
+
+  --rt-hud-bg: #0c0c0e;
+  --rt-hud-panel: rgba(16, 16, 19, 0.82);
+  --rt-hud-road: #2a2a30;
+  --rt-hud-line: #d9d9de;
+  --rt-hud-muted: #a6a6b0;
+  --rt-hud-track: #33333b;
+  --rt-hud-hi: var(--rt-accent);
+  --rt-hud-warn: #ffb27a;
+  --rt-hud-ok: var(--rt-accent-2);
+
+  --rt-font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --rt-font-heading: "Space Grotesk", var(--rt-font-body);
+  --rt-radius-lg: 24px;
+  --rt-radius-md: 16px;
+  --rt-radius-sm: 10px;
+  --rt-shadow-lg: 0 24px 60px -24px rgba(0, 0, 0, 0.6);
+}
+
+@keyframes rt-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@keyframes rt-road { from { background-position: 0 0; } to { background-position: 0 120px; } }
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--rt-canvas);
+  color: var(--rt-ink);
+  font-family: var(--rt-font-body);
+}
+
+a { color: var(--rt-accent-2); text-decoration: none; }
+a:hover { color: var(--rt-accent); }
+
+h1, h2, h3, .rt-heading { font-family: var(--rt-font-heading); font-weight: 600; letter-spacing: -0.01em; }
+
+.rt-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--rt-font-heading);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--rt-ink);
+}
+.rt-brand .rt-logo {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--rt-accent);
+  color: var(--rt-accent-ink);
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+
+.rt-pill-nav {
+  display: inline-flex;
+  gap: 4px;
+  background: var(--rt-surface);
+  border: 1px solid var(--rt-divider);
+  padding: 4px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+}
+.rt-pill-nav a, .rt-pill-nav span {
+  padding: 7px 16px;
+  border-radius: 999px;
+  color: var(--rt-muted);
+  font-weight: 600;
+}
+.rt-pill-nav a.active, .rt-pill-nav span.active {
+  background: var(--rt-accent);
+  color: var(--rt-accent-ink);
+}
+.rt-pill-nav a:hover:not(.active) { color: var(--rt-ink); }
+
+.rt-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--rt-divider);
+  background: var(--rt-surface);
+  color: var(--rt-ink);
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+.rt-chip.active { background: var(--rt-accent); color: var(--rt-accent-ink); border-color: var(--rt-accent); font-weight: 600; }
+.rt-chip.accent-2 { background: var(--rt-accent-2-soft); color: var(--rt-accent-2); border-color: transparent; }
+
+.rt-btn {
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 11px 20px;
+  border-radius: var(--rt-radius-sm);
+  border: 1px solid var(--rt-divider);
+  background: var(--rt-surface);
+  color: var(--rt-ink);
+  cursor: pointer;
+}
+.rt-btn:active { transform: scale(0.98); }
+.rt-btn.primary { background: var(--rt-accent); color: var(--rt-accent-ink); border-color: var(--rt-accent); }
+.rt-btn.ghost { background: transparent; border-color: transparent; color: var(--rt-accent-2); }
+
+.rt-card {
+  background: var(--rt-surface);
+  border: 1px solid var(--rt-divider);
+  border-radius: var(--rt-radius-md);
+  padding: 18px 20px;
+}
+.rt-card-title { font-size: 0.85rem; font-weight: 700; margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
+
+.rt-kpi {
+  background: linear-gradient(165deg, var(--rt-accent-soft), transparent 70%);
+  border: 1px solid var(--rt-accent-soft-2);
+  border-radius: var(--rt-radius-md);
+  padding: 16px 18px;
+}
+.rt-kpi .label { color: var(--rt-muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 6px; }
+.rt-kpi .value { font-family: var(--rt-font-heading); font-size: 1.7rem; font-weight: 700; margin: 0; color: var(--rt-accent); }
+
+.rt-glass {
+  background: var(--rt-hud-panel);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--rt-radius-md);
+}
+
+.rt-section-title {
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--rt-muted);
+  margin: 26px 0 10px;
+}
+
+.rt-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--rt-accent);
+  animation: rt-pulse 1.3s infinite;
+  flex: none;
+}
+
+.rt-scrollbar-none::-webkit-scrollbar { display: none; }

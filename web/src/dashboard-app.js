@@ -20,7 +20,7 @@ import {
 
 const MPH_TO_KMH = 1.609344;
 
-// --- Language picker (same pattern as src/app.js) -----------------------
+// --- Language picker (same pattern as src/camera-app.js) -----------------
 
 const langRow = document.getElementById("lang-row");
 for (const [code, label] of Object.entries(SUPPORTED_LANGUAGES)) {

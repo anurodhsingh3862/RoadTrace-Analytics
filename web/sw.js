@@ -7,14 +7,17 @@
 // large/cross-origin and we don't want to force-download them just to
 // install the app. Bump CACHE_VERSION when app-shell files change so
 // old caches get cleaned up instead of serving stale code forever.
-const CACHE_VERSION = "roadtrace-v3";
+const CACHE_VERSION = "roadtrace-v4";
 const APP_SHELL = [
   "./index.html",
+  "./camera.html",
   "./dashboard.html",
   "./manifest.json",
+  "./theme.css",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
-  "./src/app.js",
+  "./src/home.js",
+  "./src/camera-app.js",
   "./src/dashboard-app.js",
   "./src/detector.js",
   "./src/tracker.js",

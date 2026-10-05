@@ -317,6 +317,40 @@ than as one large change.
       regression tests reproduce the exact failure mode (edit a file on
       disk mid-process, confirm the next lookup sees the change) and the
       cache's efficiency (an unchanged file isn't reread every call).
+- [x] `web/` camera overlay — fixed a real bug from a live-camera
+      screenshot: labels for small, closely-spaced vehicles near the top of
+      the frame overlapped into unreadable text, and could render partly
+      above the canvas. Labels now shrink and shorten for small boxes, stay
+      clamped inside the canvas, and flip below the box instead of off the
+      top of the frame. (A calibration-reminder banner added alongside this
+      fix was removed again one round later per user feedback — confusing
+      in practice.)
+- [x] `web/` three-page redesign — `index.html` split into a new marketing
+      landing page (hero, 3-step explainer, a clearly-labeled non-live demo
+      card) and `camera.html` (the actual live-camera/upload tool, renamed
+      from the old `index.html`; `src/app.js` renamed to
+      `src/camera-app.js`), and `dashboard.html` restyled with a sidebar
+      nav. All three now share one dark/orange "Pit Lane" design system
+      (`web/theme.css`) adapted from a design mockup the user supplied.
+      Mockup features that don't fit this project were deliberately left
+      out rather than built: license-plate "fastest now" leaderboards and
+      per-vehicle violation alerts (the project collects no identity data
+      — see "Explicitly out of scope" below), a multi-camera strip (the
+      browser tool only ever has one live camera), and pricing/demo-request
+      marketing copy (this is a free portfolio project, not a SaaS
+      product). In their place, the camera page's HUD panels show only
+      data the pipeline already produces: a vehicles-now list by class and
+      speed (no identity), an average-speed sparkline, a flow-rate
+      (vehicles/min) stat, and mean detection confidence. Panels that
+      would overlap the live video on a phone-width screen were placed as
+      cards below the feed instead of floating over it, since this is a
+      phone-first camera tool. Verified end-to-end with Playwright against
+      a locally stubbed `onnxruntime-web` import (this sandbox's network
+      policy blocks the real CDN, same as it always has) — all three pages
+      load with zero console/page errors, language switching re-translates
+      already-rendered content on every page, the dashboard's JSON-import
+      flow renders KPIs/charts/crash list correctly, and the camera page's
+      calibration skip/tap flow and vehicle-list empty state both work.
 
 ## Planned, in order
 1. **A road-level crash dataset** — the actual remaining prerequisite for
@@ -329,14 +363,17 @@ than as one large change.
    indicators, ITF/OECD reports, iRAP star ratings, following the same
    pattern as `data_layers/`.
 3. **Permanent free URL for the on-device/dashboard pages** — register a
-   free is-a.dev subdomain (e.g. roadtrace.is-a.dev) pointing at the
-   GitHub Pages deployment. Attempted twice (API-based fork/PR, then a
-   manual browser fork); both blocked — this environment can't fork/PR a
-   third-party GitHub repo via API, and the manual browser fork errored
-   out for the user. The never-registered `CNAME` file was since removed
-   from the `gh-pages` branch. Deferred at the user's request for now; the
-   GitHub Pages URL (`anurodhsingh3862.github.io/RoadTrace-Analytics/`) is
-   the one in active use.
+   free is-a.dev subdomain (`roadtrace-analytics.is-a.dev`) pointing at the
+   GitHub Pages deployment. The automated fork/PR routes are blocked for
+   this environment (can't fork/PR a third-party GitHub repo via API), so
+   the user forked and opened the PR manually: `is-a-dev/register#55217`.
+   Template and CI checks are green as of this writing; it's now waiting
+   on a volunteer maintainer's code-owner review, which this project has
+   no control over. Once merged: add a `CNAME` file
+   (`roadtrace-analytics.is-a.dev`) to the `gh-pages` branch and update
+   every in-repo link from the GitHub Pages URL. Until then, the GitHub
+   Pages URL (`anurodhsingh3862.github.io/RoadTrace-Analytics/`) is the
+   one in active use.
 
 ## Explicitly out of scope
 - No license plate recognition, vehicle registration lookup, or any
