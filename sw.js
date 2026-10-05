@@ -18,6 +18,7 @@ const APP_SHELL = [
   "./src/tracker.js",
   "./src/speed.js",
   "./src/postprocess.js",
+  "./src/context.js",
 ];
 
 self.addEventListener("install", (event) => {
