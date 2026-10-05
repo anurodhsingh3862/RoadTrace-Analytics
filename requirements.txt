@@ -1,5 +1,8 @@
 ultralytics==8.3.253
-opencv-python>=4.9,<5
+# headless, not opencv-python: nothing here calls cv2.imshow/GUI functions, and
+# Streamlit Community Cloud's containers lack the GUI libraries the regular
+# package expects, which otherwise fails the deploy on import.
+opencv-python-headless>=4.9,<5
 numpy>=1.26,<3
 pandas>=2.2,<3
 matplotlib>=3.8,<4
