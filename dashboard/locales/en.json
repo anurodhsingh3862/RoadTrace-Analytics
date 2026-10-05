@@ -1,6 +1,7 @@
 {
   "app_title": "RoadTrace Analytics",
   "app_caption": "Vehicle counts, speed, and direction from traffic video. No plates, no identity data, no registration lookups.",
+  "text_try_on_device": "📷 Just want to try it with your own camera, right now? Use the on-device page →",
   "sidebar_header": "Add a camera",
   "label_camera_label": "Camera label",
   "placeholder_camera_label": "e.g. Main St at 5th",

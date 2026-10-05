@@ -1,6 +1,7 @@
 {
   "app_title": "RoadTrace Analytics",
   "app_caption": "根据交通视频统计车辆数量、速度和行驶方向。不记录车牌,不收集身份数据,不查询车辆登记信息。",
+  "text_try_on_device": "📷 想现在就用自己的摄像头试试吗?使用设备端页面 →",
   "sidebar_header": "添加摄像头",
   "label_camera_label": "摄像头标签",
   "placeholder_camera_label": "例如:第五大道与主街交叉口",
