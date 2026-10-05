@@ -7,26 +7,31 @@
 // camera tool (index.html became the marketing landing page) and the page
 // was restyled as a dark "HUD" to match a design mockup.
 //
-// Speed estimation (speed.js's Calibration/SpeedEstimator, and the
-// tap-two-spots calibration flow that used to live here) was removed from
-// this page entirely, per direct feedback that it was confusing and out of
-// place for a point-your-phone-at-traffic tool — you can't reliably know a
-// real-world reference distance while filming live from a handheld phone,
-// and every version of that flow (a card to scroll to, then a banner
-// reminder) still read as broken rather than optional. Calibrated speed
-// stays exactly where it already works well: the Streamlit dashboard
-// (dashboard/app.py), which processes a fixed, already-recorded camera
-// video where a real calibration is actually practical to set up once.
-// This page now does what a live phone camera is naturally good at:
-// counting and classifying vehicles as they pass, plus live road-safety
-// context. speed.js itself is untouched and still unit-tested — it just
-// isn't used by this page anymore.
+// Manual two-point calibration (speed.js's Calibration/SpeedEstimator, and
+// the tap-two-spots flow that used to live here) was removed from this page
+// entirely, per direct feedback that it was confusing and out of place for
+// a point-your-phone-at-traffic tool — you can't reliably know a real-world
+// reference distance while filming live from a handheld phone, and every
+// version of that flow (a card to scroll to, then a banner reminder) still
+// read as broken rather than optional.
+//
+// In its place, this page shows an AUTOMATIC, uncalibrated speed estimate
+// (speed.js's AutoSpeedEstimator) based on each vehicle's detected class and
+// a typical real-world width for that class — no tapping, no setup. It's a
+// rough approximation, not a measurement (a head-on vehicle, an
+// unusually-sized one, or a steep camera angle all throw it off), so it's
+// always shown with an explicit "estimated" label rather than presented as
+// exact. True calibrated speed stays exactly where it already works well:
+// the Streamlit dashboard (dashboard/app.py), which processes a fixed,
+// already-recorded video where a real one-time calibration is practical.
 //
 // No per-vehicle identity (no plates, no leaderboard of individual
 // vehicles) is shown, in keeping with the project's no-identity-data
-// principle.
+// principle — speeds are reported per vehicle class, not per tracked
+// individual.
 import { VehicleDetector } from "./detector.js";
 import { IouTracker } from "./tracker.js";
+import { AutoSpeedEstimator } from "./speed.js";
 import { MODEL_INPUT_SIZE } from "./postprocess.js";
 import { fetchRoadSafetyContext, cToF, kmhToMph, mmToIn, metersToMiles, compassDirection, aqiCategory } from "./context.js";
 import {
@@ -107,8 +112,20 @@ const scratchCtx = scratch.getContext("2d", { willReadFrequently: true });
 
 const detector = new VehicleDetector();
 const tracker = new IouTracker();
+const speedEstimator = new AutoSpeedEstimator();
 let startTime = null;
 let running = false;
+
+// Shared unit preference for every speed/temperature shown on this page
+// (vehicle speeds here, and the road-safety weather/speed-limit card
+// further down) — one toggle, wherever it's clicked, updates both.
+const units = { temp: "c", speed: "mph" };
+const MPH_TO_KMH = 1.609344;
+
+function formatVehicleSpeed(mph) {
+  if (mph == null) return "—";
+  return units.speed === "kmh" ? `${Math.round(mph * MPH_TO_KMH)} km/h` : `${Math.round(mph)} mph`;
+}
 
 function setStatus(text) {
   statusEl.textContent = text;
@@ -148,7 +165,7 @@ cameraButton.addEventListener("click", async () => {
 
 // --- Drawing and the detect/track loop ---------------------------------
 
-function drawDetections(detections) {
+function drawDetections(detections, speedByTrackId = new Map()) {
   overlay.width = video.videoWidth;
   overlay.height = video.videoHeight;
   overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
@@ -171,10 +188,15 @@ function drawDetections(detections) {
     overlayCtx.strokeRect(det.x1, det.y1, boxWidth, boxHeight);
 
     // Small/distant boxes get a smaller label so it doesn't dwarf the
-    // vehicle it's labeling or collide with a neighbor's.
+    // vehicle it's labeling or collide with a neighbor's. The estimated
+    // speed is also left off a compact label — a small, distant box gives
+    // the width-based estimate the least pixel precision to work with, so
+    // that's the case where showing a confident-looking number would be
+    // most misleading.
     const compact = boxWidth < 70 || boxHeight < 50;
     const fontSize = compact ? 11 : 14;
-    const label = det.className;
+    const speed = speedByTrackId.get(det.trackId);
+    const label = !compact && speed != null ? `${det.className} · ${formatVehicleSpeed(speed)}` : det.className;
 
     overlayCtx.font = `${fontSize}px sans-serif`;
     const textWidth = overlayCtx.measureText(label).width;
@@ -204,10 +226,18 @@ const flowValueEl = document.getElementById("stat-flow-value");
 const flowBarEl = document.getElementById("stat-flow-bar");
 const confidenceValueEl = document.getElementById("stat-confidence-value");
 const confidenceBarEl = document.getElementById("stat-confidence-bar");
+const speedValueEl = document.getElementById("stat-speed-value");
+const speedBarEl = document.getElementById("stat-speed-bar");
 
 const firstSeenByTrack = new Map(); // trackId -> timestampS, for the flow rate
 
-function renderVehicleList(tracked) {
+// Remembers the last frame's results so the unit toggle below can
+// re-render the speed displays immediately, without waiting on the next
+// detection frame.
+let lastTracked = [];
+let lastSpeedByTrackId = new Map();
+
+function renderVehicleList(tracked, speedByTrackId = new Map()) {
   if (!vehicleListEl) return;
   vehicleListEl.innerHTML = "";
   if (tracked.length === 0) {
@@ -217,25 +247,40 @@ function renderVehicleList(tracked) {
     vehicleListEl.appendChild(empty);
     return;
   }
+  // Grouped by class, not by individual tracked vehicle (no per-vehicle
+  // identity is shown, per the project's no-identity-data principle), so
+  // speed is averaged per class too.
   const counts = new Map();
+  const speedSumByClass = new Map();
+  const speedCountByClass = new Map();
   for (const det of tracked) {
     counts.set(det.className, (counts.get(det.className) || 0) + 1);
+    const speed = speedByTrackId.get(det.trackId);
+    if (speed != null) {
+      speedSumByClass.set(det.className, (speedSumByClass.get(det.className) || 0) + speed);
+      speedCountByClass.set(det.className, (speedCountByClass.get(det.className) || 0) + 1);
+    }
   }
   for (const [className, count] of [...counts.entries()].sort((a, b) => b[1] - a[1])) {
     const row = document.createElement("div");
     row.className = "hud-vehicle-row";
     const label = document.createElement("span");
+    label.className = "hud-vehicle-label";
     label.textContent = className;
+    const speedEl = document.createElement("span");
+    speedEl.className = "hud-vehicle-speed";
+    const speedSampleCount = speedCountByClass.get(className);
+    speedEl.textContent = speedSampleCount ? formatVehicleSpeed(speedSumByClass.get(className) / speedSampleCount) : "—";
     const countEl = document.createElement("span");
     countEl.className = "hud-vehicle-count";
     countEl.textContent = count;
-    row.append(label, countEl);
+    row.append(label, speedEl, countEl);
     vehicleListEl.appendChild(row);
   }
 }
 renderVehicleList([]); // shows the empty state immediately, before the first detection frame
 
-function renderHudStats(tracked, rawDetections, timestampS) {
+function renderFlowAndConfidence(tracked, rawDetections, timestampS) {
   for (const det of tracked) {
     if (!firstSeenByTrack.has(det.trackId)) firstSeenByTrack.set(det.trackId, timestampS);
   }
@@ -259,6 +304,24 @@ function renderHudStats(tracked, rawDetections, timestampS) {
   }
 }
 
+// Scaled against a round, generous 80 mph ceiling just to give the bar
+// something to fill toward — it's a glanceable indicator, not a precise
+// gauge (the number next to it is the actual estimate).
+const SPEED_BAR_CEILING_MPH = 80;
+
+function renderAvgSpeedStat(speedByTrackId) {
+  const speeds = [...speedByTrackId.values()];
+  if (speeds.length === 0) {
+    if (speedValueEl) speedValueEl.textContent = "—";
+    if (speedBarEl) speedBarEl.style.width = "0%";
+    return;
+  }
+  const avgMph = speeds.reduce((sum, s) => sum + s, 0) / speeds.length;
+  if (speedValueEl) speedValueEl.textContent = formatVehicleSpeed(avgMph);
+  if (speedBarEl) speedBarEl.style.width = `${Math.min(100, (avgMph / SPEED_BAR_CEILING_MPH) * 100)}%`;
+}
+renderAvgSpeedStat(new Map());
+
 async function frameLoop() {
   if (!running || video.paused || video.ended) {
     requestAnimationFrame(frameLoop);
@@ -271,9 +334,26 @@ async function frameLoop() {
     confThreshold: 0.3,
   });
   const tracked = tracker.update(raw);
-  drawDetections(tracked);
-  renderVehicleList(tracked);
-  renderHudStats(tracked, raw, timestampS);
+
+  // Road point = box bottom-center (where the vehicle meets the road),
+  // same point speed.js's calibrated estimator used — see its update()
+  // signature for why that's the point to track rather than the box center.
+  const speedByTrackId = new Map();
+  for (const det of tracked) {
+    const boxWidthPx = det.x2 - det.x1;
+    const roadX = (det.x1 + det.x2) / 2;
+    const roadY = det.y2;
+    const speed = speedEstimator.update(det.trackId, det.className, roadX, roadY, boxWidthPx, timestampS);
+    if (speed != null) speedByTrackId.set(det.trackId, speed);
+  }
+  speedEstimator.prune(timestampS);
+
+  drawDetections(tracked, speedByTrackId);
+  renderVehicleList(tracked, speedByTrackId);
+  renderFlowAndConfidence(tracked, raw, timestampS);
+  renderAvgSpeedStat(speedByTrackId);
+  lastTracked = tracked;
+  lastSpeedByTrackId = speedByTrackId;
   requestAnimationFrame(frameLoop);
 }
 
@@ -320,7 +400,8 @@ function setContextField(el, text, available) {
 // switching language, just re-renders — no need to ask the public sources
 // again for a display-only change) is declared near the top of this file,
 // by the language picker, so it exists before applyLanguage()'s first call.
-const units = { temp: "c", speed: "kmh" };
+// `units` itself is also declared near the top of the file (by the speed
+// estimator), since it's shared with the vehicle-speed display above.
 
 function formatTemp(celsius) {
   if (celsius == null) return null;
@@ -412,19 +493,32 @@ function renderRoadSafetyContext(context) {
   }
 }
 
-for (const chip of contextUnits.querySelectorAll(".unit-chip")) {
+// A single shared unit preference can have chips in more than one place on
+// this page now (the always-visible speed-unit toggle up by the live HUD,
+// and the temp/speed toggle inside the road-safety-context card) — a click
+// on either one updates every matching chip everywhere, not just its own
+// row.
+function setActiveUnitChips(group, value) {
+  for (const chip of document.querySelectorAll(`.unit-chip[data-unit-group="${group}"]`)) {
+    chip.classList.toggle("active", chip.dataset.unit === value);
+  }
+}
+
+for (const chip of document.querySelectorAll(".unit-chip")) {
   chip.addEventListener("click", () => {
     const group = chip.dataset.unitGroup;
     units[group] = chip.dataset.unit;
-    for (const sibling of contextUnits.querySelectorAll(`[data-unit-group="${group}"]`)) {
-      sibling.classList.toggle("active", sibling === chip);
-    }
+    setActiveUnitChips(group, chip.dataset.unit);
     if (lastContext) renderRoadSafetyContext(lastContext);
+    if (group === "speed") {
+      renderVehicleList(lastTracked, lastSpeedByTrackId);
+      renderAvgSpeedStat(lastSpeedByTrackId);
+    }
   });
 }
 // Default selection, shown once results appear.
-contextUnits.querySelector('[data-unit-group="temp"][data-unit="c"]').classList.add("active");
-contextUnits.querySelector('[data-unit-group="speed"][data-unit="kmh"]').classList.add("active");
+setActiveUnitChips("temp", units.temp);
+setActiveUnitChips("speed", units.speed);
 
 contextButton.addEventListener("click", () => {
   if (!("geolocation" in navigator)) {
