@@ -66,5 +66,7 @@
   "label_live_point2": "Point 2 x, y (pixels)",
   "label_live_distance": "Real distance between those points (meters)",
   "metric_live_vehicles": "Vehicles counted this session",
-  "text_live_speeds": "Current speeds: {speeds}"
+  "text_live_speeds": "Current speeds: {speeds}",
+  "caption_live_network_note": "Needs camera permission, and works best on Wi-Fi: this free setup can't always get through mobile-carrier networks. If \"Start\" doesn't connect after a few seconds, try a Wi-Fi connection instead.",
+  "warning_live_camera_unavailable": "Live camera isn't available on this deployment right now (a required package didn't load). Uploading a video above still works normally."
 }

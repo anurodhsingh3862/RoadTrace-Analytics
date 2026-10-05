@@ -66,5 +66,7 @@
   "label_live_point2": "点2 x, y(像素)",
   "label_live_distance": "这两点之间的实际距离(米)",
   "metric_live_vehicles": "本次会话已计数车辆",
-  "text_live_speeds": "当前速度:{speeds}"
+  "text_live_speeds": "当前速度:{speeds}",
+  "caption_live_network_note": "需要摄像头权限,并且在 Wi-Fi 下效果最佳:这个免费方案不一定能穿透移动运营商网络。如果几秒后“Start”仍未连接,请尝试改用 Wi-Fi。",
+  "warning_live_camera_unavailable": "此部署当前无法使用实时摄像头(某个必需的软件包未能加载)。上方的视频上传功能仍可正常使用。"
 }

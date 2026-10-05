@@ -7,7 +7,7 @@
 // large/cross-origin and we don't want to force-download them just to
 // install the app. Bump CACHE_VERSION when app-shell files change so
 // old caches get cleaned up instead of serving stale code forever.
-const CACHE_VERSION = "roadtrace-v1";
+const CACHE_VERSION = "roadtrace-v2";
 const APP_SHELL = [
   "./index.html",
   "./manifest.json",
@@ -19,6 +19,7 @@ const APP_SHELL = [
   "./src/speed.js",
   "./src/postprocess.js",
   "./src/context.js",
+  "./src/i18n.js",
 ];
 
 self.addEventListener("install", (event) => {

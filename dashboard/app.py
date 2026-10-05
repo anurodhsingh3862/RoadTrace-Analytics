@@ -11,13 +11,41 @@ from tempfile import NamedTemporaryFile
 
 import pandas as pd
 import streamlit as st
-from streamlit_webrtc import WebRtcMode, webrtc_streamer
 
 from core.speed_estimator import Calibration
 from dashboard.aggregator import CameraRun, hourly_summary
 from dashboard.i18n import DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES, t
-from dashboard.live import LiveTrafficProcessor, ManualCalibration
 from dashboard.pipeline import analyze_video
+
+# The live-camera tab (streamlit-webrtc + its native aiortc/av dependencies)
+# is the newest, least battle-tested part of this app on free hosting. If it
+# fails to import for any reason (a missing system library on the host, a
+# dependency version mismatch, etc.), that must not take the whole dashboard
+# down with it - uploaded-video analysis is the app's core feature and has
+# to keep working regardless. So this import is isolated and checked, and
+# the rest of the app only offers the live-camera tab when it actually
+# succeeded.
+try:
+    from streamlit_webrtc import WebRtcMode, webrtc_streamer
+
+    from dashboard.live import LiveTrafficProcessor, ManualCalibration
+
+    LIVE_CAMERA_AVAILABLE = True
+    LIVE_CAMERA_IMPORT_ERROR = None
+except Exception as exc:  # noqa: BLE001 - deliberately broad, see comment above
+    LIVE_CAMERA_AVAILABLE = False
+    LIVE_CAMERA_IMPORT_ERROR = str(exc)
+
+# Free STUN server so the browser-to-Streamlit-Cloud video connection can
+# traverse NAT at all (streamlit-webrtc's own docs: this is required for any
+# non-localhost deployment, Streamlit Community Cloud explicitly included).
+# This is Google's public STUN server - free, no signup. STUN alone still
+# cannot always get through carrier-grade NAT on mobile data connections;
+# that needs a TURN relay too, which every free option is either unstable
+# (Open Relay) or requires its own account (Cloudflare, Twilio) - not added
+# here to keep this zero-cost and zero-signup. The on-screen caption says
+# this plainly rather than implying the live feed will always connect.
+LIVE_CAMERA_RTC_CONFIG = {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
 from dashboard.units import DEFAULT_UNIT, SUPPORTED_UNITS, convert_speed, format_speed
 from data_layers import get_country_context, get_county_fatal_crashes, get_nearby_speed_limit
 from data_layers.weather import get_hourly_weather, representative_conditions
@@ -77,50 +105,56 @@ with top_left:
     st.markdown(f"[{t('text_try_on_device', lang)}](https://anurodhsingh3862.github.io/RoadTrace-Analytics/)")
 
 with st.expander(t("expander_live_camera", lang), expanded=False):
-    st.caption(t("caption_live_camera", lang))
-    live_calibrate = st.checkbox(t("checkbox_live_calibrate", lang), key="live_calibrate")
-    live_calibration = None
-    if live_calibrate:
-        lc1, lc2 = st.columns(2)
-        with lc1:
-            live_p1x = st.number_input("Point 1 x", min_value=0, value=0, key="live_p1x")
-            live_p1y = st.number_input("Point 1 y", min_value=0, value=0, key="live_p1y")
-        with lc2:
-            live_p2x = st.number_input("Point 2 x", min_value=0, value=100, key="live_p2x")
-            live_p2y = st.number_input("Point 2 y", min_value=0, value=0, key="live_p2y")
-        st.caption(t("label_live_point1", lang) + " / " + t("label_live_point2", lang))
-        live_distance_m = st.number_input(t("label_live_distance", lang), min_value=0.1, value=10.0, key="live_distance")
-        try:
-            live_calibration = ManualCalibration(
-                point1=(float(live_p1x), float(live_p1y)),
-                point2=(float(live_p2x), float(live_p2y)),
-                distance_m=float(live_distance_m),
-            )
-        except ValueError as exc:
-            st.error(str(exc))
-            live_calibration = None
+    if not LIVE_CAMERA_AVAILABLE:
+        st.warning(t("warning_live_camera_unavailable", lang))
+        st.caption(f"({LIVE_CAMERA_IMPORT_ERROR})")
+    else:
+        st.caption(t("caption_live_camera", lang))
+        st.caption(t("caption_live_network_note", lang))
+        live_calibrate = st.checkbox(t("checkbox_live_calibrate", lang), key="live_calibrate")
+        live_calibration = None
+        if live_calibrate:
+            lc1, lc2 = st.columns(2)
+            with lc1:
+                live_p1x = st.number_input("Point 1 x", min_value=0, value=0, key="live_p1x")
+                live_p1y = st.number_input("Point 1 y", min_value=0, value=0, key="live_p1y")
+            with lc2:
+                live_p2x = st.number_input("Point 2 x", min_value=0, value=100, key="live_p2x")
+                live_p2y = st.number_input("Point 2 y", min_value=0, value=0, key="live_p2y")
+            st.caption(t("label_live_point1", lang) + " / " + t("label_live_point2", lang))
+            live_distance_m = st.number_input(t("label_live_distance", lang), min_value=0.1, value=10.0, key="live_distance")
+            try:
+                live_calibration = ManualCalibration(
+                    point1=(float(live_p1x), float(live_p1y)),
+                    point2=(float(live_p2x), float(live_p2y)),
+                    distance_m=float(live_distance_m),
+                )
+            except ValueError as exc:
+                st.error(str(exc))
+                live_calibration = None
 
-    webrtc_ctx = webrtc_streamer(
-        key="live-traffic",
-        mode=WebRtcMode.SENDRECV,
-        video_processor_factory=lambda: LiveTrafficProcessor(live_calibration),
-        media_stream_constraints={"video": True, "audio": False},
-    )
+        webrtc_ctx = webrtc_streamer(
+            key="live-traffic",
+            mode=WebRtcMode.SENDRECV,
+            rtc_configuration=LIVE_CAMERA_RTC_CONFIG,
+            video_processor_factory=lambda: LiveTrafficProcessor(live_calibration),
+            media_stream_constraints={"video": True, "audio": False},
+        )
 
-    if webrtc_ctx.video_processor:
-        live_stats_placeholder = st.empty()
-        while webrtc_ctx.state.playing:
-            snapshot = webrtc_ctx.video_processor.stats.snapshot()
-            with live_stats_placeholder.container():
-                st.metric(t("metric_live_vehicles", lang), snapshot["total_vehicles"])
-                if snapshot["counts_by_class"]:
-                    st.write(snapshot["counts_by_class"])
-                if snapshot["live_speeds_mph"]:
-                    speeds_text = ", ".join(
-                        format_speed(s, unit) for s in snapshot["live_speeds_mph"]
-                    )
-                    st.write(t("text_live_speeds", lang, speeds=speeds_text))
-            time.sleep(1)
+        if webrtc_ctx.video_processor:
+            live_stats_placeholder = st.empty()
+            while webrtc_ctx.state.playing:
+                snapshot = webrtc_ctx.video_processor.stats.snapshot()
+                with live_stats_placeholder.container():
+                    st.metric(t("metric_live_vehicles", lang), snapshot["total_vehicles"])
+                    if snapshot["counts_by_class"]:
+                        st.write(snapshot["counts_by_class"])
+                    if snapshot["live_speeds_mph"]:
+                        speeds_text = ", ".join(
+                            format_speed(s, unit) for s in snapshot["live_speeds_mph"]
+                        )
+                        st.write(t("text_live_speeds", lang, speeds=speeds_text))
+                time.sleep(1)
 
 with st.sidebar:
     st.header(t("sidebar_header", lang))
