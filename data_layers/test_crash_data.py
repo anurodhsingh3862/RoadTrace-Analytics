@@ -12,6 +12,18 @@ def _response(payload):
 
 class CrashDataTests(unittest.TestCase):
     @patch("data_layers.crash_data.requests.get")
+    def test_sends_a_browser_like_user_agent(self, mock_get):
+        # Regression guard: the host's WAF 403s requests.py's default
+        # User-Agent (confirmed against the live API on 2026-10-05) — this
+        # locks in that a header is always sent, and isn't requests.py's
+        # own default string.
+        mock_get.return_value = _response({"Results": [[]]})
+        get_county_fatal_crashes("18", "163", 2024)
+        sent_headers = mock_get.call_args.kwargs.get("headers", {})
+        self.assertIn("User-Agent", sent_headers)
+        self.assertNotIn("python-requests", sent_headers["User-Agent"])
+
+    @patch("data_layers.crash_data.requests.get")
     def test_nested_list_of_lists_shape(self, mock_get):
         mock_get.return_value = _response({
             "Results": [[

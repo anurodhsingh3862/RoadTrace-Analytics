@@ -5,19 +5,24 @@ first real crash-data adapter (see docs/roadmap.md): the actual
 prerequisite for a per-road risk estimate, as opposed to the country-level
 background rates in world_bank.py/who_gho.py.
 
-**This is the least-verified adapter in this repo.** The CrashAPI's
-documentation page confirms the endpoint exists and is public, but every
-call this project made to it from the development environment (both the
-sandbox's shell and the web-fetch tool used to verify other adapters) was
-rejected with an HTTP 403 — almost certainly a bot-blocking WAF in front
-of the .gov host, not a sign the API itself is gone. Its exact JSON field
-names were never seen directly; what's here is written defensively
-against NHTSA's documented FARS field-naming conventions (uppercase,
-SAS-style: FATALS, ST_CASE, COUNTY, STATE, YEAR) and is deliberately
-tolerant of a few shape variations. Treat it as unverified until you run
+**Root cause found and fixed, 2026-10-05:** every call to this endpoint
+during initial development returned HTTP 403 from an Akamai/edgesuite WAF
+in front of the .gov host — confirmed, by the user running the request
+directly, to be the WAF rejecting Python's default ``requests``
+User-Agent string, not the API being unavailable or the query being
+wrong. Sending a normal browser-like User-Agent header resolves it. If
+this ever starts 403ing again, suspect the WAF tightening its rules
+further (e.g. blocking on other header fingerprints) before suspecting
+the query itself.
+
+Still worth re-confirming after this fix: run
 ``python -m data_layers.crash_data <state_fips> <county_fips> <year>`` on
-a machine with normal internet access and confirm the numbers look right
-against NHTSA's own published fatality tables for that county/year.
+a machine with normal internet access and check the printed count against
+NHTSA's own published fatality tables for that county/year — the exact
+JSON field names were inferred from NHTSA's documented FARS
+conventions (uppercase, SAS-style: FATALS, ST_CASE, COUNTY, STATE, YEAR)
+and tolerated a couple of shape variations defensively, but a passing
+request is the only way to confirm the parsing matches the real shape.
 
 Important limitation even once verified: FARS only records FATAL crashes.
 A county with zero recorded fatal crashes in a year is not a county with
@@ -38,6 +43,16 @@ from typing import Optional
 import requests
 
 BASE_URL = "https://crashviewer.nhtsa.dot.gov/CrashAPI/crashes/GetCrashesByLocation"
+
+# The WAF in front of this host 403s requests.py's default User-Agent
+# ("python-requests/x.y"); a normal browser-like one passes. See the
+# module docstring for how this was confirmed.
+_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36"
+    )
+}
 
 
 @dataclass
@@ -91,6 +106,7 @@ def get_county_fatal_crashes(
     try:
         response = requests.get(
             BASE_URL,
+            headers=_HEADERS,
             params={
                 "states": state_fips,
                 "counties": county_fips,
