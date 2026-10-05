@@ -91,38 +91,35 @@ than as one large change.
       from a phone browser, confirm the install prompt/icon appears, then
       try opening it in airplane mode after one successful load.
 - [x] `data_layers/crash_data.py` — US county-level fatal-crash counts
-      from NHTSA's FARS Crash API (free, no key), wired into
-      `risk_context.py` and the dashboard via an optional 5-digit county
-      FIPS code on the camera form. This is the first real local-tier
-      crash-data source, but it does **not** make risk_context a true
-      risk model yet: FARS is county-wide, not road-specific, and only
-      records *fatal* crashes (a county with zero on file is "zero fatal
-      crashes on record", not "safe"). Both the module docstring and the
-      dashboard say this every time the number is shown.
+      from NHTSA's FARS dataset, wired into `risk_context.py` and the
+      dashboard via an optional 5-digit county FIPS code on the camera
+      form. This is the first real local-tier crash-data source, but it
+      does **not** make risk_context a true risk model yet: FARS is
+      county-wide, not road-specific, and only records *fatal* crashes (a
+      county with zero on file is "zero fatal crashes on record", not
+      "safe"). Both the module docstring and the dashboard say this every
+      time the number is shown.
       Every live call made to NHTSA's **CrashAPI** (`crashviewer.nhtsa.dot.gov`)
       during development was rejected with HTTP 403 from an Akamai/edgesuite
-      WAF — including after sending a normal browser-like `User-Agent`
-      header, which was the first attempted fix (2026-10-05) and was
-      **confirmed insufficient** by a second live test from the user's own
-      machine, which got a fresh 403 with a new Akamai reference ID. That
-      points to bot-detection below the HTTP-header level (TLS/JA3
-      fingerprinting or similar), which a `requests`-header change can't
-      get around.
-      **Switched (2026-10-05) to NHTSA's static bulk-file archive instead**:
-      `static.nhtsa.gov` hosts the entire FARS dataset as plain yearly ZIP
-      files, no key, no bot-protection — a different host than the CrashAPI,
-      confirmed reachable during development (a real multi-megabyte ZIP
-      came back, not a WAF page). The adapter now downloads and caches one
-      year's national file (`~/.cache/roadtrace_fars`, one download per
-      year, reused for every county/year lookup after) and counts matching
-      rows itself instead of querying an API.
-      Still needs a real-network confirmation run — the ZIP's structure was
-      built against NHTSA's documented FARS file-naming conventions but
-      hasn't been downloaded and parsed for real yet: run
-      `python -m data_layers.crash_data <state_fips> <county_fips> <year>`
-      (the first run per year downloads tens of MB, so it's slower than
-      later ones) and check the printed count against NHTSA's own published
-      tables. 10/10 tests (mocked HTTP + an in-memory ZIP fixture) passing.
+      WAF. A normal browser-like `User-Agent` header (the first attempted
+      fix) did not help, and the user confirmed it isn't Python-specific:
+      opening the exact same API URL directly in their own browser hit the
+      identical "Access Denied" WAF page. This endpoint is unreachable
+      programmatically or otherwise from outside NHTSA's own allowed
+      traffic — not worth any further attempt.
+      **Fixed (2026-10-05) by switching to NHTSA's static bulk-file archive
+      instead**: `static.nhtsa.gov` hosts the entire FARS dataset as plain
+      yearly ZIP files, no key, no bot-protection — a different host than
+      the CrashAPI. The adapter downloads and caches one year's national
+      file (`~/.cache/roadtrace_fars`, one download per year, reused for
+      every county/year lookup after) and counts matching rows itself
+      instead of querying an API.
+      **Live-verified 2026-10-05** by the user: `python -m
+      data_layers.crash_data 18 163 2024` against the real archive
+      returned `CountyCrashStats(state_fips='18', county_fips='163',
+      year=2024, fatal_crash_count=20, fatalities=21, ...)` for
+      Vanderburgh County, IN — a real, in-range number, not a guess.
+      10/10 tests (mocked HTTP + an in-memory ZIP fixture) passing.
 
 ## Planned, in order
 1. **A road-level crash dataset** — the actual remaining prerequisite for
