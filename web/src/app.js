@@ -291,21 +291,6 @@ function drawDetections(detections) {
     overlayCtx.fillStyle = "#ffffff";
     overlayCtx.fillText(label, labelX + 4, labelY + boxH - 6);
   }
-
-  // Speed only ever appears once calibration is set (two-point-distance
-  // step below the video) — without it every vehicle legitimately shows
-  // no number forever, which reads as broken rather than "not set up
-  // yet". Keep that requirement visible directly on the camera feed
-  // itself, not just in the step-2 card someone may not have scrolled to.
-  if (!speedEstimator.calibration && detections.length > 0) {
-    overlayCtx.font = "14px sans-serif";
-    const hint = t("overlay_calibrate_hint");
-    const hintWidth = overlayCtx.measureText(hint).width;
-    overlayCtx.fillStyle = "#00142099";
-    overlayCtx.fillRect(8, 8, hintWidth + 16, 26);
-    overlayCtx.fillStyle = "#ffd27a";
-    overlayCtx.fillText(hint, 16, 26);
-  }
 }
 
 async function frameLoop() {

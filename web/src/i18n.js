@@ -51,7 +51,6 @@ const STRINGS = {
     hint_advanced_error: "Calibration error: {message}",
 
     overlay_label_no_speed: "no speed",
-    overlay_calibrate_hint: "📏 Tap 'Measure speed' below to see vehicle speed",
 
     distance_picker_title: "How far apart are those two spots, really?",
     chip_3m: "3 m (a parked car)",
@@ -185,7 +184,6 @@ const STRINGS = {
     hint_advanced_error: "कैलिब्रेशन त्रुटि: {message}",
 
     overlay_label_no_speed: "गति नहीं",
-    overlay_calibrate_hint: "📏 गति देखने के लिए नीचे 'गति मापें' टैप करें",
 
     distance_picker_title: "वे दोनों बिंदु असल में कितनी दूर हैं?",
     chip_3m: "3 मीटर (एक खड़ी कार)",
@@ -319,7 +317,6 @@ const STRINGS = {
     hint_advanced_error: "Error de calibración: {message}",
 
     overlay_label_no_speed: "sin velocidad",
-    overlay_calibrate_hint: "📏 Toca 'Medir velocidad' abajo para ver la velocidad",
 
     distance_picker_title: "¿Qué tan separados están realmente esos dos puntos?",
     chip_3m: "3 m (un auto estacionado)",
@@ -453,7 +450,6 @@ const STRINGS = {
     hint_advanced_error: "校准错误:{message}",
 
     overlay_label_no_speed: "无速度",
-    overlay_calibrate_hint: "📏 点击下方的「测量速度」以查看车速",
 
     distance_picker_title: "这两个点实际相距多远?",
     chip_3m: "3 米(一辆停放的汽车)",
