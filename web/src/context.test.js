@@ -6,7 +6,14 @@ import {
   parseWhoResponse,
   parseMaxspeedKmh,
   parseOverpassResponse,
-  parseOpenMeteoCurrent,
+  parseDetailedWeather,
+  parseAirQuality,
+  aqiCategory,
+  cToF,
+  kmhToMph,
+  mmToIn,
+  metersToMiles,
+  compassDirection,
   fetchRoadSafetyContext,
 } from "./context.js";
 
@@ -86,18 +93,95 @@ test("parseOverpassResponse returns null when nothing nearby has a maxspeed tag"
   assert.equal(parseOverpassResponse({ elements: [{ tags: { highway: "residential" } }] }), null);
 });
 
-test("parseOpenMeteoCurrent extracts the current_weather block", () => {
-  const body = { current_weather: { temperature: 21.4, windspeed: 9.1, weathercode: 1, time: "2026-10-05T09:00" } };
-  assert.deepEqual(parseOpenMeteoCurrent(body), {
-    temperatureC: 21.4,
-    windspeedKmh: 9.1,
-    weathercode: 1,
+test("parseDetailedWeather extracts current conditions, today's sun/UV/rain, and matches visibility by hour", () => {
+  const body = {
+    current: {
+      time: "2026-10-05T09:00",
+      weather_code: 1,
+      temperature_2m: 19,
+      apparent_temperature: 18.5,
+      relative_humidity_2m: 42,
+      precipitation: 0,
+      wind_speed_10m: 14.5,
+      wind_gusts_10m: 27.4,
+      wind_direction_10m: 50,
+    },
+    hourly: {
+      time: ["2026-10-05T08:00", "2026-10-05T09:00", "2026-10-05T10:00"],
+      visibility: [16000, 24140, 24140],
+    },
+    daily: {
+      sunrise: ["2026-10-05T06:51"],
+      sunset: ["2026-10-05T18:27"],
+      uv_index_max: [3.2],
+      precipitation_sum: [0],
+    },
+  };
+  assert.deepEqual(parseDetailedWeather(body), {
     time: "2026-10-05T09:00",
+    weathercode: 1,
+    temperatureC: 19,
+    apparentTemperatureC: 18.5,
+    humidityPct: 42,
+    precipitationMm: 0,
+    windspeedKmh: 14.5,
+    windGustsKmh: 27.4,
+    windDirectionDeg: 50,
+    visibilityM: 24140,
+    sunrise: "2026-10-05T06:51",
+    sunset: "2026-10-05T18:27",
+    uvIndexMax: 3.2,
+    precipitationSumMm: 0,
   });
 });
 
-test("parseOpenMeteoCurrent returns null without a current_weather block", () => {
-  assert.equal(parseOpenMeteoCurrent({}), null);
+test("parseDetailedWeather returns null without a current block", () => {
+  assert.equal(parseDetailedWeather({}), null);
+});
+
+test("parseDetailedWeather leaves visibility null when the current hour isn't in the hourly list", () => {
+  const body = {
+    current: { time: "2026-10-05T09:00", temperature_2m: 19 },
+    hourly: { time: ["2026-10-05T08:00"], visibility: [16000] },
+    daily: {},
+  };
+  assert.equal(parseDetailedWeather(body).visibilityM, null);
+});
+
+test("parseAirQuality extracts the US AQI value", () => {
+  assert.deepEqual(parseAirQuality({ current: { us_aqi: 37 } }), { usAqi: 37 });
+});
+
+test("parseAirQuality returns null when us_aqi is missing", () => {
+  assert.equal(parseAirQuality({ current: {} }), null);
+  assert.equal(parseAirQuality({}), null);
+});
+
+test("aqiCategory follows the US EPA breakpoints", () => {
+  assert.equal(aqiCategory(37), "Good");
+  assert.equal(aqiCategory(75), "Moderate");
+  assert.equal(aqiCategory(120), "Unhealthy (sensitive groups)");
+  assert.equal(aqiCategory(180), "Unhealthy");
+  assert.equal(aqiCategory(250), "Very unhealthy");
+  assert.equal(aqiCategory(400), "Hazardous");
+  assert.equal(aqiCategory(null), null);
+});
+
+test("unit conversions", () => {
+  assert.ok(Math.abs(cToF(0) - 32) < 1e-9);
+  assert.ok(Math.abs(cToF(100) - 212) < 1e-9);
+  assert.ok(Math.abs(kmhToMph(161) - 100) < 0.1);
+  assert.ok(Math.abs(mmToIn(25.4) - 1) < 1e-9);
+  assert.ok(Math.abs(metersToMiles(1609.344) - 1) < 1e-9);
+  assert.equal(cToF(null), null);
+  assert.equal(kmhToMph(null), null);
+});
+
+test("compassDirection maps degrees to the nearest 8-point label", () => {
+  assert.equal(compassDirection(0), "N");
+  assert.equal(compassDirection(50), "NE");
+  assert.equal(compassDirection(360), "N");
+  assert.equal(compassDirection(null), null);
 });
 
 test("fetchRoadSafetyContext combines every source, keyed off reverse geocoding", async () => {
@@ -114,8 +198,19 @@ test("fetchRoadSafetyContext combines every source, keyed off reverse geocoding"
     if (url.includes("overpass")) {
       return jsonResponse({ elements: [{ tags: { highway: "primary", maxspeed: "60" } }] });
     }
-    if (url.includes("open-meteo")) {
-      return jsonResponse({ current_weather: { temperature: 30, windspeed: 5, weathercode: 0, time: "t" } });
+    if (url.includes("air-quality-api")) {
+      return jsonResponse({ current: { us_aqi: 37 } });
+    }
+    if (url.includes("api.open-meteo.com")) {
+      return jsonResponse({
+        current: {
+          time: "t", weather_code: 0, temperature_2m: 30, apparent_temperature: 32,
+          relative_humidity_2m: 50, precipitation: 0, wind_speed_10m: 5,
+          wind_gusts_10m: 10, wind_direction_10m: 180,
+        },
+        hourly: { time: ["t"], visibility: [20000] },
+        daily: { sunrise: ["6:00"], sunset: ["18:00"], uv_index_max: [5], precipitation_sum: [0] },
+      });
     }
     throw new Error(`unexpected URL in test: ${url}`);
   };
@@ -125,15 +220,22 @@ test("fetchRoadSafetyContext combines every source, keyed off reverse geocoding"
   assert.deepEqual(result.worldBank, { year: 2021, deathsPer100k: 11.3 });
   assert.deepEqual(result.who, { year: 2019, deathsPer100k: 16.6 });
   assert.deepEqual(result.speedLimit, { highwayType: "primary", maxspeedKmh: 60 });
-  assert.deepEqual(result.weather, { temperatureC: 30, windspeedKmh: 5, weathercode: 0, time: "t" });
+  assert.equal(result.weather.temperatureC, 30);
+  assert.equal(result.weather.visibilityM, 20000);
+  assert.deepEqual(result.airQuality, { usAqi: 37 });
 });
 
-test("fetchRoadSafetyContext still returns weather/speed limit when the country can't be identified", async () => {
+test("fetchRoadSafetyContext still returns weather/AQI when the country can't be identified", async () => {
   const fakeFetch = async (url) => {
     if (url.includes("nominatim")) return jsonResponse({}, false); // simulate failure
     if (url.includes("overpass")) return jsonResponse({ elements: [] });
-    if (url.includes("open-meteo")) {
-      return jsonResponse({ current_weather: { temperature: 10, windspeed: 2, weathercode: 3, time: "t" } });
+    if (url.includes("air-quality-api")) return jsonResponse({ current: { us_aqi: 10 } });
+    if (url.includes("api.open-meteo.com")) {
+      return jsonResponse({
+        current: { time: "t", temperature_2m: 10, wind_speed_10m: 2 },
+        hourly: {},
+        daily: {},
+      });
     }
     throw new Error(`unexpected URL in test: ${url}`);
   };
@@ -143,7 +245,8 @@ test("fetchRoadSafetyContext still returns weather/speed limit when the country 
   assert.equal(result.worldBank, null);
   assert.equal(result.who, null);
   assert.equal(result.speedLimit, null);
-  assert.deepEqual(result.weather, { temperatureC: 10, windspeedKmh: 2, weathercode: 3, time: "t" });
+  assert.equal(result.weather.temperatureC, 10);
+  assert.deepEqual(result.airQuality, { usAqi: 10 });
 });
 
 test("fetchRoadSafetyContext never throws when every source fails", async () => {
@@ -157,5 +260,6 @@ test("fetchRoadSafetyContext never throws when every source fails", async () => 
     who: null,
     speedLimit: null,
     weather: null,
+    airQuality: null,
   });
 });

@@ -96,6 +96,7 @@
       font-size: 0.9rem;
     }
     .chip:hover { background: #1c2a42; }
+    .chip.active { background: #00d2ff; color: #06121f; border-color: #00d2ff; font-weight: 600; }
     .custom-distance { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
     .custom-distance input {
       width: 90px;
@@ -217,12 +218,18 @@
     <h2>🌍 Road safety near you</h2>
     <p>
       See official road-safety numbers for your area: your country's road
-      death rate, the posted speed limit nearby, and the current weather.
-      Your browser asks these public sources directly — nothing goes
-      through us, same as everything else on this page.
+      death rate, the posted speed limit nearby, and current weather and
+      air quality. Your browser asks these public sources directly —
+      nothing goes through us, same as everything else on this page.
     </p>
     <button id="context-button" class="big-button secondary" type="button">📍 Show info for my location</button>
     <p id="context-note"></p>
+    <div id="context-units" class="chip-row" style="display:none;">
+      <button class="chip unit-chip" type="button" data-unit-group="temp" data-unit="c">°C</button>
+      <button class="chip unit-chip" type="button" data-unit-group="temp" data-unit="f">°F</button>
+      <button class="chip unit-chip" type="button" data-unit-group="speed" data-unit="kmh">km/h</button>
+      <button class="chip unit-chip" type="button" data-unit-group="speed" data-unit="mph">mph</button>
+    </div>
     <div id="context-grid" class="context-grid" style="display:none;">
       <div class="context-item">
         <p class="context-label">Country road deaths</p>
@@ -239,6 +246,38 @@
       <div class="context-item">
         <p class="context-label">Weather right now</p>
         <p class="context-value" id="context-weather">—</p>
+      </div>
+      <div class="context-item">
+        <p class="context-label">Feels like</p>
+        <p class="context-value" id="context-feelslike">—</p>
+      </div>
+      <div class="context-item">
+        <p class="context-label">Humidity</p>
+        <p class="context-value" id="context-humidity">—</p>
+      </div>
+      <div class="context-item">
+        <p class="context-label">Wind</p>
+        <p class="context-value" id="context-wind">—</p>
+      </div>
+      <div class="context-item">
+        <p class="context-label">Visibility</p>
+        <p class="context-value" id="context-visibility">—</p>
+      </div>
+      <div class="context-item">
+        <p class="context-label">Sunrise / sunset</p>
+        <p class="context-value" id="context-sun">—</p>
+      </div>
+      <div class="context-item">
+        <p class="context-label">UV index (today's max)</p>
+        <p class="context-value" id="context-uv">—</p>
+      </div>
+      <div class="context-item">
+        <p class="context-label">Precipitation today</p>
+        <p class="context-value" id="context-precip">—</p>
+      </div>
+      <div class="context-item">
+        <p class="context-label">Air quality (US AQI)</p>
+        <p class="context-value" id="context-aqi">—</p>
       </div>
     </div>
   </div>
