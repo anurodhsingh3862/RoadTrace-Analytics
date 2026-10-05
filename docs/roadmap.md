@@ -427,6 +427,25 @@ than as one large change.
     against); it should be checked against real traffic before relying on
     it for a professor-facing demo.
 
+  - **Added the posted speed limit to the live camera HUD, next to the
+    estimated vehicle speed.** The "Road safety near you" card already
+    looked this up (OpenStreetMap's nearby `maxspeed` tag) but only on an
+    explicit button press, buried below the fold — easy to miss if you
+    just want to glance at "how fast are vehicles going vs. the limit
+    here" while filming. Now, the moment the live camera starts (not an
+    uploaded file — a video's actual location has nothing to do with
+    wherever the phone requesting the data happens to be), the page asks
+    for location once and shows the posted limit directly in the "Live
+    stats" card, reusing the same lightweight `getNearbySpeedLimit()`
+    lookup and the same shared mph/km-h toggle as the vehicle speed
+    estimate. Degrades honestly: a clear "no data for this road" when
+    OSM has nothing tagged nearby, "location permission denied" if
+    declined, "not available" if the browser has no geolocation support
+    — never a guess. Verified with Playwright against mocked Overpass
+    responses covering all of those cases, plus the live mph/km-h toggle
+    updating the limit in place. The existing "Road safety near you" card
+    (with its fuller World Bank/WHO/weather context) is unchanged.
+
 ## Planned, in order
 1. **A road-level crash dataset** — the actual remaining prerequisite for
    `risk_context.py` to become a real risk model instead of "measured
