@@ -352,6 +352,32 @@ than as one large change.
       flow renders KPIs/charts/crash list correctly, and the camera page's
       calibration skip/tap flow and vehicle-list empty state both work.
 
+  - **Removed the on-page calibration/speed-measurement flow from the
+    live camera page.** After the redesign shipped, live testing on real
+    traffic surfaced the two-point "tap to calibrate" card and its
+    "Average speed" HUD panel as confusing/annoying in practice — this
+    was flagged three rounds in a row (speed silently not appearing,
+    then a reminder banner for it, then the calibration card itself).
+    Per explicit feedback, removed the feature entirely from
+    `camera.html`/`camera-app.js` rather than patching the UX further:
+    no more tap-to-calibrate overlay interaction, no distance picker, no
+    advanced pixel-coordinate form, no per-vehicle speed label, no
+    average-speed sparkline. The "Vehicles now" panel now shows a
+    per-class count instead of a per-vehicle speed list, and the HUD's
+    second panel became a simpler "Live stats" card (flow rate +
+    detection confidence only — both already derived without
+    calibration). `web/src/speed.js` (the `Calibration`/`SpeedEstimator`
+    classes) and its test suite are untouched and unused by this page;
+    the Streamlit dashboard (`dashboard/app.py`, which processes
+    pre-recorded video) keeps its own one-time calibration flow, since a
+    single calibration per uploaded video is practical there in a way a
+    live, continuously-changing camera feed is not. Removed ~28 now-dead
+    i18n keys for the old calibration/avg-speed UI across all 4
+    languages and added `hud_stats_title`. Verified with the full test
+    suite (57 unit tests + 12 i18n key-parity tests) and a Playwright
+    smoke test confirming no calibration elements remain, the stats
+    panel renders, and language switching still works.
+
 ## Planned, in order
 1. **A road-level crash dataset** — the actual remaining prerequisite for
    `risk_context.py` to become a real risk model instead of "measured

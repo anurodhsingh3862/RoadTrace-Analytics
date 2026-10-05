@@ -43,7 +43,7 @@ test("setLanguage()/getLanguage() round-trip, and reject unsupported codes", () 
 
 test("t() with no explicit language uses the current language set by setLanguage()", () => {
   setLanguage("es");
-  assert.equal(t("set_button"), "Establecer");
+  assert.equal(t("hud_confidence_label"), "Confianza de detección");
   setLanguage(DEFAULT_LANGUAGE);
 });
 
