@@ -51,6 +51,8 @@ from data_layers import get_country_context, get_county_fatal_crashes, get_nearb
 from data_layers.weather import get_hourly_weather, representative_conditions
 from dashboard.weather_correlation import has_enough_for_a_trend_note, speed_weather_table
 from dashboard.risk_context import build_risk_context
+from dashboard.export import build_export_payload
+import json
 
 st.set_page_config(page_title="RoadTrace Analytics", layout="wide")
 
@@ -253,6 +255,9 @@ kpi1.metric(t("metric_vehicles_tracked", lang), total_vehicles)
 kpi2.metric(t("metric_avg_speed", lang), avg_speed_display)
 kpi3.metric(t("metric_cameras", lang), len(runs))
 
+risk_contexts = []
+weather_table = pd.DataFrame()
+
 located_runs = [r for r in runs if r.country_iso2 or (r.latitude and r.longitude) or r.us_county_fips]
 if located_runs:
     st.subheader(t("subheader_road_safety_context", lang))
@@ -320,6 +325,7 @@ if located_runs:
                 ))
             st.caption(t("text_context_disclaimer", lang))
             st.caption(t("text_no_risk_score", lang))
+            risk_contexts.append(risk)
 
 located_with_coords = [r for r in runs if r.latitude and r.longitude]
 if located_with_coords:
@@ -334,6 +340,20 @@ if located_with_coords:
         )
         if not has_enough_for_a_trend_note(weather_table):
             st.caption(t("caption_weather_sample_too_small", lang))
+
+st.divider()
+export_payload = build_export_payload(
+    runs, summary, risk_contexts=risk_contexts,
+    speed_weather_table=weather_table if not weather_table.empty else None,
+    unit=unit,
+)
+st.download_button(
+    label=t("button_export_results", lang),
+    data=json.dumps(export_payload, indent=2),
+    file_name="roadtrace-export.json",
+    mime="application/json",
+    help=t("caption_export_results", lang),
+)
 
 if summary.empty:
     st.warning(t("warning_no_vehicles", lang))
