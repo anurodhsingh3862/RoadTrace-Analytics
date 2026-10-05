@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RoadTrace Analytics — dashboard</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0a0e17" />
+  <link rel="icon" href="icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <style>
+    :root {
+      --bg: #0a0e17;
+      --bg-grad: radial-gradient(circle at 15% 0%, #16213a 0%, #0a0e17 55%);
+      --glass-bg: rgba(255, 255, 255, 0.045);
+      --glass-border: rgba(255, 255, 255, 0.09);
+      --text: #eef2f8;
+      --text-dim: #8d9ab3;
+      --accent-blue: #4fc3ff;
+      --accent-orange: #ff9340;
+      --accent-orange-dim: rgba(255, 147, 64, 0.16);
+      --danger: #ff6b6b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      margin: 0;
+      padding: 18px 16px 48px;
+      background: var(--bg) var(--bg-grad);
+      background-attachment: fixed;
+      color: var(--text);
+    }
+    a { color: var(--accent-blue); }
+    .wrap { max-width: 1080px; margin: 0 auto; }
+
+    .lang-row { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+    .lang-row .lang-label { color: var(--text-dim); font-size: 0.8rem; }
+    .chip {
+      padding: 6px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--glass-border);
+      background: var(--glass-bg);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+    .chip.active { background: var(--accent-blue); color: #06121f; border-color: var(--accent-blue); font-weight: 600; }
+
+    .top-row { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px; margin-bottom: 6px; }
+    h1 { font-size: 1.3rem; margin: 0 0 4px; }
+    .subtitle { color: var(--text-dim); margin: 0 0 18px; font-size: 0.92rem; max-width: 640px; }
+    .back-link { font-size: 0.85rem; text-decoration: none; white-space: nowrap; }
+
+    .clock-card {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 18px;
+      justify-content: space-between;
+      padding: 18px 20px;
+      border-radius: 18px;
+      border: 1px solid var(--glass-border);
+      background: var(--glass-bg);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      margin-bottom: 18px;
+    }
+    #clock-time { font-size: 2.1rem; font-weight: 600; letter-spacing: 0.02em; }
+    #clock-date { color: var(--text-dim); font-size: 0.9rem; margin-top: 2px; }
+    #clock-place { color: var(--text-dim); font-size: 0.85rem; margin-top: 4px; }
+
+    h2.section-title {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-dim);
+      margin: 26px 0 10px;
+    }
+
+    .glass-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 12px;
+    }
+    .glass-card {
+      border-radius: 16px;
+      border: 1px solid var(--glass-border);
+      background: var(--glass-bg);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      padding: 14px 16px;
+    }
+    .glass-card .label {
+      color: var(--text-dim);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin: 0 0 6px;
+    }
+    .glass-card .value { font-size: 1.15rem; font-weight: 600; margin: 0; }
+    .glass-card .value.dim { color: var(--text-dim); font-weight: 400; font-size: 0.95rem; }
+    .glass-card .sub { color: var(--text-dim); font-size: 0.78rem; margin: 4px 0 0; }
+
+    .saas-card {
+      border-radius: 16px;
+      border: 1px solid rgba(255, 147, 64, 0.22);
+      background: linear-gradient(165deg, rgba(255, 147, 64, 0.08), rgba(255, 255, 255, 0.02));
+      padding: 16px 18px;
+    }
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; margin-bottom: 16px; }
+    .kpi-card {
+      border-radius: 16px;
+      border: 1px solid rgba(255, 147, 64, 0.22);
+      background: linear-gradient(165deg, rgba(255, 147, 64, 0.1), rgba(255, 255, 255, 0.02));
+      padding: 16px 18px;
+    }
+    .kpi-card .label { color: var(--text-dim); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 6px; }
+    .kpi-card .value { font-size: 1.6rem; font-weight: 700; margin: 0; color: var(--accent-orange); }
+
+    .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; }
+    @media (max-width: 720px) { .chart-grid { grid-template-columns: 1fr; } }
+    .chart-card h3 { font-size: 0.85rem; margin: 0 0 10px; color: var(--text); font-weight: 600; }
+    .chart-card canvas { max-height: 220px; }
+
+    .import-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .btn {
+      font-size: 0.9rem;
+      padding: 10px 16px;
+      border-radius: 10px;
+      border: 1px solid var(--glass-border);
+      background: var(--glass-bg);
+      color: var(--text);
+      cursor: pointer;
+    }
+    .btn.primary { background: var(--accent-orange); color: #1a0e02; border-color: var(--accent-orange); font-weight: 600; }
+    .btn:active { transform: scale(0.98); }
+    #import-note { font-size: 0.82rem; color: var(--text-dim); }
+    #import-error { font-size: 0.85rem; color: var(--danger); margin: 0 0 12px; display: none; }
+
+    .empty-state {
+      border-radius: 16px;
+      border: 1px dashed var(--glass-border);
+      padding: 28px 20px;
+      text-align: center;
+      color: var(--text-dim);
+    }
+    .empty-state .icon { font-size: 2rem; margin-bottom: 8px; }
+    .empty-state h3 { color: var(--text); margin: 0 0 6px; font-size: 1rem; }
+    .empty-state p { margin: 0; font-size: 0.88rem; max-width: 440px; margin-inline: auto; }
+
+    .crash-card .value { color: var(--accent-orange); }
+    footer.card-footer {
+      margin-top: 28px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="lang-row" id="lang-row">
+      <span class="lang-label" data-i18n="language_label">Language</span>
+    </div>
+
+    <div class="top-row">
+      <div>
+        <h1 data-i18n="dash_title">📊 RoadTrace Dashboard</h1>
+        <p class="subtitle" data-i18n="dash_subtitle">A live, always-on snapshot of road conditions near you, plus traffic results you've processed and exported from the Streamlit dashboard.</p>
+      </div>
+      <a class="back-link" href="index.html" data-i18n="dash_back_link">← On-device page</a>
+    </div>
+
+    <div class="clock-card">
+      <div>
+        <div id="clock-time">--:--</div>
+        <div id="clock-date">—</div>
+        <div id="clock-place" data-i18n="dash_location_asking">Finding your location...</div>
+      </div>
+      <a
+        href="https://roadtrace-analytics-eznzyjg6jschcteyxmmedl.streamlit.app/"
+        target="_blank" rel="noopener"
+        class="btn primary"
+        data-i18n="dash_open_streamlit_button"
+      >🚀 Process a video on the full dashboard</a>
+    </div>
+
+    <h2 class="section-title" data-i18n="dash_section_now">Right now</h2>
+    <div class="glass-grid" id="weather-grid">
+      <div class="glass-card"><p class="label" data-i18n="label_weather">Weather right now</p><p class="value dim" id="w-weather">—</p></div>
+      <div class="glass-card"><p class="label" data-i18n="label_feelslike">Feels like</p><p class="value dim" id="w-feelslike">—</p></div>
+      <div class="glass-card"><p class="label" data-i18n="label_humidity">Humidity</p><p class="value dim" id="w-humidity">—</p></div>
+      <div class="glass-card"><p class="label" data-i18n="label_wind">Wind</p><p class="value dim" id="w-wind">—</p></div>
+      <div class="glass-card"><p class="label" data-i18n="label_visibility">Visibility</p><p class="value dim" id="w-visibility">—</p></div>
+      <div class="glass-card"><p class="label" data-i18n="label_sun">Sunrise / sunset</p><p class="value dim" id="w-sun">—</p></div>
+      <div class="glass-card"><p class="label" data-i18n="label_uv">UV index (today's max)</p><p class="value dim" id="w-uv">—</p></div>
+      <div class="glass-card"><p class="label" data-i18n="label_precip">Precipitation today</p><p class="value dim" id="w-precip">—</p></div>
+      <div class="glass-card"><p class="label" data-i18n="label_aqi">Air quality (US AQI)</p><p class="value dim" id="w-aqi">—</p></div>
+      <div class="glass-card"><p class="label" data-i18n="label_worldbank">Country road deaths</p><p class="value dim" id="w-worldbank">—</p></div>
+      <div class="glass-card"><p class="label" data-i18n="label_who">WHO estimate</p><p class="value dim" id="w-who">—</p></div>
+      <div class="glass-card"><p class="label" data-i18n="label_speedlimit">Posted speed limit nearby</p><p class="value dim" id="w-speedlimit">—</p></div>
+    </div>
+
+    <h2 class="section-title" data-i18n="dash_section_traffic">Traffic analytics</h2>
+    <div class="import-row">
+      <button class="btn primary" id="import-button" type="button" data-i18n="dash_import_button">📂 Import results (.json)</button>
+      <button class="btn" id="clear-button" type="button" style="display:none;" data-i18n="dash_clear_import_button">Clear imported results</button>
+      <input type="file" id="import-input" accept="application/json,.json" style="display:none" />
+      <span id="import-note" data-i18n="dash_import_hint">Export a JSON file from the Streamlit dashboard's "Download results as JSON" button, then import it here.</span>
+    </div>
+    <p id="import-error" data-i18n="dash_import_error">Couldn't read that file — make sure it's a results JSON file exported from the dashboard.</p>
+
+    <div id="empty-state" class="empty-state">
+      <div class="icon">📭</div>
+      <h3 data-i18n="dash_empty_title">No traffic data imported yet</h3>
+      <p data-i18n="dash_empty_desc">Everything above (time, weather, road-safety context) works right now with no camera at all. Import a results file to see vehicle counts, speeds, and crash history here too.</p>
+    </div>
+
+    <div id="traffic-content" style="display:none;">
+      <p id="import-success" class="sub" style="color: var(--text-dim); margin: -6px 0 14px;"></p>
+      <div class="kpi-grid">
+        <div class="kpi-card"><p class="label" data-i18n="dash_kpi_vehicles">Vehicles tracked</p><p class="value" id="kpi-vehicles">0</p></div>
+        <div class="kpi-card"><p class="label" data-i18n="dash_kpi_avg_speed">Average speed</p><p class="value" id="kpi-speed">—</p></div>
+        <div class="kpi-card"><p class="label" data-i18n="dash_kpi_cameras">Cameras</p><p class="value" id="kpi-cameras">0</p></div>
+        <div class="kpi-card"><p class="label" data-i18n="dash_kpi_crashes">County fatal crashes</p><p class="value" id="kpi-crashes">—</p></div>
+      </div>
+
+      <div class="chart-grid">
+        <div class="saas-card chart-card">
+          <h3 data-i18n="dash_chart_hourly">Vehicles per hour</h3>
+          <canvas id="chart-hourly"></canvas>
+        </div>
+        <div class="saas-card chart-card">
+          <h3 data-i18n="dash_chart_direction">Direction split</h3>
+          <canvas id="chart-direction"></canvas>
+        </div>
+      </div>
+      <div class="saas-card chart-card" style="margin-bottom:16px;">
+        <h3 data-i18n="dash_chart_speed">Average speed per hour</h3>
+        <canvas id="chart-speed"></canvas>
+      </div>
+
+      <div class="saas-card crash-card">
+        <h3 data-i18n="dash_crash_title" style="margin:0 0 8px; font-size:0.85rem;">Crash history (nearest county)</h3>
+        <div id="crash-list"></div>
+      </div>
+    </div>
+
+    <footer class="card-footer">
+      <a href="index.html" class="chip" data-i18n="dash_back_link">← On-device page</a>
+    </footer>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script type="module" src="src/dashboard-app.js"></script>
+</body>
+</html>

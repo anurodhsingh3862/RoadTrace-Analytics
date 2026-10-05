@@ -251,6 +251,47 @@ than as one large change.
       and empty-input/zeroed-payload behavior. Next: build the actual
       display page that reads this file.
 
+- [x] `web/dashboard.html` + `web/src/dashboard-app.js` — a new, polished
+      static dashboard page (dark glass cards + an orange-accented
+      SaaS-analytics look, per the reference designs), hosted free on
+      GitHub Pages alongside the on-device page. Built because Streamlit's
+      own component styling can't produce that look; this page is the
+      "display" half the dashboard export (`dashboard/export.py`) was
+      built to feed.
+      Two halves, deliberately independent of each other:
+      - **Always on, camera-independent** ("Right now"): a live clock and
+        date (no network needed at all), plus the same public, no-key
+        weather/air-quality/road-safety-rate/speed-limit lookups the
+        on-device page's card 3 already does (`context.js`), shown as
+        glass cards. This is the answer to "the dashboard should look
+        relevant even with nothing processed yet" — it's never empty,
+        because it needs no camera or imported data to begin with.
+      - **Traffic analytics**: populated only by importing a JSON file
+        exported from the Streamlit dashboard. Before any import, a
+        deliberate, polished empty state explains this rather than
+        leaving a blank gap. After import: KPI tiles (vehicles tracked,
+        average speed, cameras, county fatal crashes), three Chart.js
+        charts (vehicles/hour, direction split, average speed/hour), and
+        a crash-history/risk-context list — all re-rendered from the same
+        in-memory payload on every language switch.
+      Same language picker as the on-device page (reuses `i18n.js`,
+      with ~25 new keys added to all 4 languages). Chart.js loads from
+      a CDN (same "no build step" pattern as `onnxruntime-web`); if that
+      script fails to load (blocked, offline, ad-blocked), the charts
+      degrade to a plain "not available" line instead of taking down the
+      KPIs/crash-list next to them, which need nothing but the imported
+      JSON — caught two real bugs this way during testing: a
+      temporal-dead-zone crash on page load (same class of bug
+      `web/src/app.js` already had fixed once — `lastPayload` was read
+      inside a function defined above its own `let` declaration), and a
+      chart-fallback element losing its `id` on a second render, which
+      silently broke re-translating the crash list on a language switch
+      after import. Both reproduced and fixed via headless-browser testing
+      (Playwright) with a real sample export file, not just a lint pass.
+      Cross-linked from both other pages: a button on the on-device
+      page's "want deeper analysis" card, and a markdown link under the
+      Streamlit dashboard's title.
+
 ## Planned, in order
 1. **A road-level crash dataset** — the actual remaining prerequisite for
    `risk_context.py` to become a real risk model instead of "measured
