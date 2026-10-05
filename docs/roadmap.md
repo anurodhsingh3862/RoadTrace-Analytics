@@ -35,6 +35,15 @@ than as one large change.
       expected), two-point calibration only, non-letterboxed resize.
       **Live**: https://anurodhsingh3862.github.io/RoadTrace-Analytics/
       (free, GitHub Pages), installable as a PWA.
+      Also includes `web/src/context.js` (2026-10-05): a "Road safety near
+      you" card that brings World Bank/WHO road-death rates, OSM posted
+      speed limit, and current weather onto this same page — previously
+      dashboard-only. On tap, the browser's own location prompt fires and
+      the page calls each public source directly, no server involved,
+      same design as the rest of this page. Does not include NHTSA county
+      crash data (that source is a 30+MB/year bulk file, unreasonable to
+      fetch per page visit — stays dashboard-only). 17/17 new tests
+      passing (39/39 total in web/).
 - [x] `data_layers/` — global and local-tier road-safety context,
       pluggable per source:
       - World Bank (`SH.STA.TRAF.P5`) and WHO GHO (`RS_198`) road-traffic
