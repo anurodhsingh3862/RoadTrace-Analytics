@@ -13,6 +13,7 @@ import { VehicleDetector } from "./detector.js";
 import { IouTracker } from "./tracker.js";
 import { Calibration, SpeedEstimator } from "./speed.js";
 import { MODEL_INPUT_SIZE } from "./postprocess.js";
+import { fetchRoadSafetyContext } from "./context.js";
 
 const MPH_TO_KMH = 1.609344;
 
@@ -226,6 +227,83 @@ async function main() {
 }
 
 main().catch(() => setStatus("Something went wrong loading the model. Try reloading the page."));
+
+// --- Road safety context (World Bank/WHO/OSM/weather, client-side) ----
+
+const WEATHER_CODE_LABELS = {
+  0: "Clear", 1: "Mostly clear", 2: "Partly cloudy", 3: "Overcast",
+  45: "Fog", 48: "Fog", 51: "Light drizzle", 53: "Drizzle", 55: "Heavy drizzle",
+  61: "Light rain", 63: "Rain", 65: "Heavy rain", 71: "Light snow", 73: "Snow",
+  75: "Heavy snow", 80: "Rain showers", 81: "Rain showers", 82: "Violent rain showers",
+  95: "Thunderstorm", 96: "Thunderstorm", 99: "Thunderstorm",
+};
+
+const contextButton = document.getElementById("context-button");
+const contextNote = document.getElementById("context-note");
+const contextGrid = document.getElementById("context-grid");
+const contextWorldBank = document.getElementById("context-worldbank");
+const contextWho = document.getElementById("context-who");
+const contextSpeedLimit = document.getElementById("context-speedlimit");
+const contextWeather = document.getElementById("context-weather");
+
+function setContextField(el, text, available) {
+  el.textContent = text;
+  el.classList.toggle("unavailable", !available);
+}
+
+function renderRoadSafetyContext(context) {
+  contextGrid.style.display = "grid";
+
+  if (context.worldBank) {
+    setContextField(contextWorldBank, `${context.worldBank.deathsPer100k}/100k (${context.worldBank.year}, World Bank)`, true);
+  } else {
+    setContextField(contextWorldBank, "Not available", false);
+  }
+
+  if (context.who) {
+    setContextField(contextWho, `${context.who.deathsPer100k}/100k (${context.who.year})`, true);
+  } else {
+    setContextField(contextWho, "Not available", false);
+  }
+
+  if (context.speedLimit && context.speedLimit.maxspeedKmh != null) {
+    setContextField(contextSpeedLimit, `${Math.round(context.speedLimit.maxspeedKmh)} km/h`, true);
+  } else {
+    setContextField(contextSpeedLimit, "No tagged road nearby", false);
+  }
+
+  if (context.weather) {
+    const label = WEATHER_CODE_LABELS[context.weather.weathercode] || "Current";
+    setContextField(contextWeather, `${label}, ${Math.round(context.weather.temperatureC)}°C`, true);
+  } else {
+    setContextField(contextWeather, "Not available", false);
+  }
+}
+
+contextButton.addEventListener("click", () => {
+  if (!("geolocation" in navigator)) {
+    contextNote.textContent = "Your browser doesn't support location, so this can't be shown.";
+    return;
+  }
+  contextNote.textContent = "Asking for your location...";
+  navigator.geolocation.getCurrentPosition(
+    async (position) => {
+      contextNote.textContent = "Looking up public sources for this location...";
+      const { latitude, longitude } = position.coords;
+      try {
+        const context = await fetchRoadSafetyContext(latitude, longitude);
+        contextNote.textContent = "";
+        renderRoadSafetyContext(context);
+      } catch {
+        contextNote.textContent = "Couldn't reach those sources right now — try again in a moment.";
+      }
+    },
+    () => {
+      contextNote.textContent = "Location permission was denied, so this can't be shown.";
+    },
+    { timeout: 10000 }
+  );
+});
 
 // PWA: lets the page be installed (Add to Home Screen) and reused offline
 // after the first successful load. Registration failing (e.g. serviceWorker

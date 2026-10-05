@@ -108,6 +108,32 @@
     #calib-hint { font-size: 0.85rem; color: #ffd27a; min-height: 1.2em; }
     details { margin-top: 12px; }
     summary { cursor: pointer; color: #9fb3c8; font-size: 0.85rem; }
+    .context-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .context-item {
+      background: #10203a;
+      border-radius: 8px;
+      padding: 10px;
+    }
+    .context-item .context-label {
+      color: #9fb3c8;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin: 0 0 4px;
+    }
+    .context-item .context-value {
+      color: #e8edf5;
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin: 0;
+    }
+    .context-item .context-value.unavailable { color: #6b7d94; font-weight: 400; }
+    #context-note { font-size: 0.8rem; color: #ffd27a; margin-top: 10px; }
     .advanced-grid label { display: block; margin: 6px 0 2px; font-size: 0.8rem; color: #9fb3c8; }
     .advanced-grid input {
       width: 100%;
@@ -185,6 +211,36 @@
         <button type="submit" class="big-button secondary" style="margin-top:10px;">Set calibration</button>
       </form>
     </details>
+  </div>
+
+  <div class="card">
+    <h2>🌍 Road safety near you</h2>
+    <p>
+      See official road-safety numbers for your area: your country's road
+      death rate, the posted speed limit nearby, and the current weather.
+      Your browser asks these public sources directly — nothing goes
+      through us, same as everything else on this page.
+    </p>
+    <button id="context-button" class="big-button secondary" type="button">📍 Show info for my location</button>
+    <p id="context-note"></p>
+    <div id="context-grid" class="context-grid" style="display:none;">
+      <div class="context-item">
+        <p class="context-label">Country road deaths</p>
+        <p class="context-value" id="context-worldbank">—</p>
+      </div>
+      <div class="context-item">
+        <p class="context-label">WHO estimate</p>
+        <p class="context-value" id="context-who">—</p>
+      </div>
+      <div class="context-item">
+        <p class="context-label">Posted speed limit nearby</p>
+        <p class="context-value" id="context-speedlimit">—</p>
+      </div>
+      <div class="context-item">
+        <p class="context-label">Weather right now</p>
+        <p class="context-value" id="context-weather">—</p>
+      </div>
+    </div>
   </div>
 
   <!--
