@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RoadTrace Analytics — live camera</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0b0b0d" />
+  <link rel="icon" href="icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="theme.css" />
+  <style>
+    body { padding: 0 0 40px; }
+    .wrap { max-width: 1120px; margin: 0 auto; padding: 0 16px; }
+
+    .lang-row { display: flex; align-items: center; gap: 8px; padding: 14px 16px 0; flex-wrap: wrap; }
+    .lang-row .lang-label { color: var(--rt-muted); font-size: 0.8rem; }
+
+    .hud-stage {
+      position: relative;
+      width: 100%;
+      max-width: 1120px;
+      margin: 10px auto 0;
+      border-radius: var(--rt-radius-lg);
+      overflow: hidden;
+      background: var(--rt-hud-bg);
+    }
+    video, #overlay { width: 100%; display: block; }
+    #overlay { position: absolute; top: 0; left: 0; }
+    #overlay.pickable { cursor: crosshair; }
+
+    .hud-topbar {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      right: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      z-index: 2;
+    }
+    .hud-topbar .rt-brand.glass { background: var(--rt-hud-panel); backdrop-filter: blur(10px); padding: 6px 16px 6px 6px; border-radius: 999px; color: var(--rt-ink); }
+    .hud-status { margin-left: auto; display: flex; align-items: center; gap: 8px; background: var(--rt-hud-panel); backdrop-filter: blur(10px); padding: 8px 14px; border-radius: 999px; font-size: 0.8rem; color: var(--rt-hud-line); }
+
+    #status { position: absolute; left: 12px; bottom: 12px; z-index: 2; background: var(--rt-hud-panel); backdrop-filter: blur(10px); padding: 6px 14px; border-radius: 999px; font-size: 0.8rem; color: var(--rt-hud-line); max-width: calc(100% - 24px); }
+
+    .hud-below { padding-top: 16px; }
+    .hud-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin-bottom: 12px; }
+    @media (max-width: 700px) { .hud-grid { grid-template-columns: 1fr; } }
+
+    .hud-vehicle-row { display: flex; justify-content: space-between; padding: 8px 4px; border-bottom: 1px solid var(--rt-divider); font-size: 0.9rem; }
+    .hud-vehicle-row:last-child { border-bottom: none; }
+    .hud-vehicle-speed { font-weight: 700; color: var(--rt-accent); }
+    .hud-vehicle-empty { color: var(--rt-muted); font-size: 0.85rem; padding: 8px 4px; }
+
+    .hud-avg-value { font-family: var(--rt-font-heading); font-size: 2.6rem; font-weight: 700; color: var(--rt-accent); line-height: 1; }
+    .hud-avg-unit { color: var(--rt-muted); font-size: 0.85rem; margin-left: 6px; }
+    .hud-spark { width: 100%; height: 36px; margin-top: 6px; }
+
+    .hud-stat-row { margin-bottom: 10px; }
+    .hud-stat-row:last-child { margin-bottom: 0; }
+    .hud-stat-head { display: flex; font-size: 0.82rem; margin-bottom: 5px; }
+    .hud-stat-head .k { color: var(--rt-muted); margin-right: auto; }
+    .hud-stat-head .v { font-weight: 700; }
+    .hud-stat-track { height: 7px; border-radius: 999px; background: var(--rt-hud-track); overflow: hidden; }
+    .hud-stat-fill { height: 100%; border-radius: 999px; background: var(--rt-accent-2); transition: width 0.6s ease; }
+
+    .chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+    #calib-hint { font-size: 0.85rem; color: var(--rt-hud-warn); min-height: 1.2em; margin: 6px 0 0; }
+    .custom-distance { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+    .custom-distance input, .advanced-grid input {
+      padding: 8px;
+      border-radius: 8px;
+      border: 1px solid var(--rt-divider);
+      background: var(--rt-ground);
+      color: var(--rt-ink);
+    }
+    details { margin-top: 12px; }
+    summary { cursor: pointer; color: var(--rt-muted); font-size: 0.85rem; }
+    .advanced-grid label { display: block; margin: 8px 0 3px; font-size: 0.8rem; color: var(--rt-muted); }
+
+    .context-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 12px; }
+    .context-item { background: var(--rt-ground); border-radius: 12px; padding: 10px 12px; }
+    .context-item .context-label { color: var(--rt-muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.03em; margin: 0 0 4px; }
+    .context-item .context-value { color: var(--rt-ink); font-size: 0.92rem; font-weight: 600; margin: 0; }
+    .context-item .context-value.unavailable { color: var(--rt-muted); font-weight: 400; }
+    #context-note { font-size: 0.8rem; color: var(--rt-hud-warn); margin-top: 8px; }
+
+    footer.card-footer { margin-top: 24px; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+  </style>
+</head>
+<body>
+  <div class="lang-row" id="lang-row">
+    <span class="lang-label" data-i18n="language_label">Language</span>
+  </div>
+
+  <div class="hud-stage">
+    <video id="source" autoplay playsinline muted></video>
+    <canvas id="overlay"></canvas>
+    <div class="hud-topbar">
+      <div class="rt-brand glass">
+        <span class="rt-logo"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="m12 14 4-4"></path><path d="M3.34 19a10 10 0 1 1 17.32 0"></path></svg></span>
+        RoadTrace
+      </div>
+      <div class="rt-pill-nav" style="background:var(--rt-hud-panel); backdrop-filter:blur(10px); border-color:transparent;">
+        <span class="active">Live</span>
+        <a href="dashboard.html">Dashboard</a>
+        <a href="index.html">Home</a>
+      </div>
+      <div class="hud-status"><span class="rt-live-dot"></span><span id="hud-clock">--:--:--</span></div>
+    </div>
+    <p id="status" data-i18n="status_loading">Loading...</p>
+  </div>
+
+  <div class="wrap hud-below">
+    <p class="subtitle" style="color:var(--rt-muted); font-size:0.9rem; margin: 2px 0 14px;" data-i18n="subtitle">
+      Point your camera at a road. It counts vehicles and guesses their speed —
+      all on this device. Nothing is uploaded anywhere.
+    </p>
+
+    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px;">
+      <button id="camera-button" class="rt-btn primary" type="button" data-i18n="camera_button">📷 Use my camera</button>
+      <button id="file-button" class="rt-btn" type="button" data-i18n="file_button">🎬 Upload a video</button>
+      <input type="file" id="file-input" accept="video/*" style="display:none" />
+    </div>
+
+    <div class="hud-grid">
+      <div class="rt-card">
+        <div class="rt-card-title" data-i18n="hud_vehicles_title">Vehicles now</div>
+        <div id="vehicle-list"></div>
+      </div>
+      <div class="rt-card">
+        <div class="rt-card-title" data-i18n="hud_avg_speed_title">Average speed</div>
+        <div><span class="hud-avg-value" id="avg-speed-value">—</span><span class="hud-avg-unit">km/h</span></div>
+        <svg class="hud-spark" viewBox="0 0 100 36" preserveAspectRatio="none"><path id="avg-speed-spark" d="" fill="none" stroke="var(--rt-accent)" stroke-width="2.5" stroke-linecap="round" vector-effect="non-scaling-stroke"></path></svg>
+        <div class="hud-stat-row" style="margin-top:14px;">
+          <div class="hud-stat-head"><span class="k" data-i18n="hud_flow_label">Flow</span><span class="v" id="stat-flow-value">0 veh/min</span></div>
+          <div class="hud-stat-track"><div class="hud-stat-fill" id="stat-flow-bar" style="width:0%"></div></div>
+        </div>
+        <div class="hud-stat-row">
+          <div class="hud-stat-head"><span class="k" data-i18n="hud_confidence_label">Detection confidence</span><span class="v" id="stat-confidence-value">—</span></div>
+          <div class="hud-stat-track"><div class="hud-stat-fill" id="stat-confidence-bar" style="width:0%"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="rt-card calib-card" style="margin-bottom:12px;">
+      <div class="rt-card-title" data-i18n="card2_title">Measure speed (optional)</div>
+      <p style="color:var(--rt-muted); font-size:0.88rem; margin:0 0 10px;" data-i18n="card2_desc">
+        Pick two spots in the video where you know the real distance between
+        them — like two lamp posts, or the width of a parking space. You'll
+        still see boxes around every vehicle even if you skip this step; you
+        just won't see a speed number.
+      </p>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button id="calibrate-button" class="rt-btn primary" type="button" data-i18n="calibrate_button">📏 Tap two spots</button>
+        <button id="skip-calibrate-button" class="rt-btn" type="button" data-i18n="skip_calibrate_button">Skip — no speed needed</button>
+      </div>
+      <p id="calib-hint"></p>
+
+      <div id="distance-picker" style="display:none;">
+        <p style="margin-top:10px; font-size:0.88rem;" data-i18n="distance_picker_title">How far apart are those two spots, really?</p>
+        <div class="chip-row">
+          <button class="rt-chip" type="button" data-meters="3" data-i18n="chip_3m">3 m (a parked car)</button>
+          <button class="rt-chip" type="button" data-meters="5" data-i18n="chip_5m">5 m</button>
+          <button class="rt-chip" type="button" data-meters="10" data-i18n="chip_10m">10 m</button>
+          <button class="rt-chip" type="button" data-meters="20" data-i18n="chip_20m">20 m</button>
+        </div>
+        <div class="custom-distance">
+          <input id="custom-distance" type="number" min="0.1" step="0.1" placeholder="other" data-i18n-placeholder="custom_distance_placeholder" />
+          <span data-i18n="meters_label">meters</span>
+          <button id="custom-distance-set" class="rt-btn" type="button" data-i18n="set_button">Set</button>
+        </div>
+      </div>
+
+      <details>
+        <summary data-i18n="advanced_summary">Advanced: type exact pixel coordinates instead</summary>
+        <form id="calibration-form" class="advanced-grid">
+          <label data-i18n="label_point1">Point 1 x, y (pixels)</label>
+          <div style="display:flex; gap:4px;">
+            <input name="p1x" type="number" value="0" />
+            <input name="p1y" type="number" value="0" />
+          </div>
+          <label data-i18n="label_point2">Point 2 x, y (pixels)</label>
+          <div style="display:flex; gap:4px;">
+            <input name="p2x" type="number" value="100" />
+            <input name="p2y" type="number" value="0" />
+          </div>
+          <label data-i18n="label_distance">Real-world distance between the points (meters)</label>
+          <input name="distance" type="number" value="10" step="0.1" />
+          <button type="submit" class="rt-btn" style="margin-top:10px;" data-i18n="set_calibration_button">Set calibration</button>
+        </form>
+      </details>
+    </div>
+
+    <div class="rt-card">
+      <div class="rt-card-title" data-i18n="card3_title">🌍 Road safety near you</div>
+      <p style="color:var(--rt-muted); font-size:0.88rem; margin:0 0 10px;" data-i18n="card3_desc">
+        See official road-safety numbers for your area: your country's road
+        death rate, the posted speed limit nearby, and current weather and
+        air quality. Your browser asks these public sources directly —
+        nothing goes through us, same as everything else on this page.
+      </p>
+      <button id="context-button" class="rt-btn" type="button" data-i18n="context_button">📍 Show info for my location</button>
+      <p id="context-note"></p>
+      <div id="context-units" class="chip-row" style="display:none; gap:8px;">
+        <button class="rt-chip unit-chip" type="button" data-unit-group="temp" data-unit="c">°C</button>
+        <button class="rt-chip unit-chip" type="button" data-unit-group="temp" data-unit="f">°F</button>
+        <button class="rt-chip unit-chip" type="button" data-unit-group="speed" data-unit="kmh">km/h</button>
+        <button class="rt-chip unit-chip" type="button" data-unit-group="speed" data-unit="mph">mph</button>
+      </div>
+      <div id="context-grid" class="context-grid" style="display:none;">
+        <div class="context-item"><p class="context-label" data-i18n="label_worldbank">Country road deaths</p><p class="context-value" id="context-worldbank">—</p></div>
+        <div class="context-item"><p class="context-label" data-i18n="label_who">WHO estimate</p><p class="context-value" id="context-who">—</p></div>
+        <div class="context-item"><p class="context-label" data-i18n="label_speedlimit">Posted speed limit nearby</p><p class="context-value" id="context-speedlimit">—</p></div>
+        <div class="context-item"><p class="context-label" data-i18n="label_weather">Weather right now</p><p class="context-value" id="context-weather">—</p></div>
+        <div class="context-item"><p class="context-label" data-i18n="label_feelslike">Feels like</p><p class="context-value" id="context-feelslike">—</p></div>
+        <div class="context-item"><p class="context-label" data-i18n="label_humidity">Humidity</p><p class="context-value" id="context-humidity">—</p></div>
+        <div class="context-item"><p class="context-label" data-i18n="label_wind">Wind</p><p class="context-value" id="context-wind">—</p></div>
+        <div class="context-item"><p class="context-label" data-i18n="label_visibility">Visibility</p><p class="context-value" id="context-visibility">—</p></div>
+        <div class="context-item"><p class="context-label" data-i18n="label_sun">Sunrise / sunset</p><p class="context-value" id="context-sun">—</p></div>
+        <div class="context-item"><p class="context-label" data-i18n="label_uv">UV index (today's max)</p><p class="context-value" id="context-uv">—</p></div>
+        <div class="context-item"><p class="context-label" data-i18n="label_precip">Precipitation today</p><p class="context-value" id="context-precip">—</p></div>
+        <div class="context-item"><p class="context-label" data-i18n="label_aqi">Air quality (US AQI)</p><p class="context-value" id="context-aqi">—</p></div>
+      </div>
+    </div>
+
+    <footer class="card-footer">
+      <a href="dashboard.html" class="rt-chip" data-i18n="dash_title">📊 RoadTrace Dashboard</a>
+      <a href="https://roadtrace-analytics-d.streamlit.app/" target="_blank" rel="noopener" class="rt-chip accent-2" data-i18n="open_dashboard_button">🚀 Open the full dashboard</a>
+    </footer>
+  </div>
+
+  <!--
+    Bare "onnxruntime-web" import resolved via CDN, since this page has no
+    build step (npm install is for local dev/testing only, see
+    web/README.md). Pinned to the exact version web/package.json resolves,
+    so what's tested locally matches what loads here.
+  -->
+  <script type="importmap">
+  {
+    "imports": {
+      "onnxruntime-web": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/ort.wasm.min.mjs"
+    }
+  }
+  </script>
+  <script type="module" src="src/camera-app.js"></script>
+</body>
+</html>

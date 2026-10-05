@@ -6,6 +6,14 @@ is uploaded anywhere. This is the free-at-any-scale version described in
 `docs/roadmap.md`, distinct from `dashboard/` (the Streamlit app), which
 runs the model on whatever machine hosts it.
 
+Three pages, one shared dark/orange look (`theme.css`):
+- `index.html` — the landing page (what `/` serves). No camera, no model
+  load; just an explanation and links to the other two.
+- `camera.html` — the actual live-camera/upload-a-video tool (this was
+  `index.html` before the page was split; `src/app.js` is now
+  `src/camera-app.js`).
+- `dashboard.html` — the always-on context + imported-results dashboard.
+
 ## Setup
 
 ```bash
@@ -34,13 +42,13 @@ Node's built-in test runner — no browser, no model file, no dependency
 beyond Node itself. These cover the pure logic: YOLO output decoding, NMS,
 the IoU tracker, and speed calculation.
 
-`detector.js` and `app.js` (the onnxruntime-web wiring and DOM/camera glue)
-are **not** covered by these tests — they need a real browser, a real
+`detector.js` and `camera-app.js` (the onnxruntime-web wiring and DOM/camera
+glue) are **not** covered by these tests — they need a real browser, a real
 model file, and a camera or video, none of which exist in this environment.
-Before relying on this, open `index.html` in an actual browser on an actual
-phone and confirm: the model loads, the camera permission prompt appears
-and works, boxes track real vehicles correctly, and speed estimates look
-sane for a video you've calibrated by hand.
+Before relying on this, open `camera.html` in an actual browser on an
+actual phone and confirm: the model loads, the camera permission prompt
+appears and works, boxes track real vehicles correctly, and speed estimates
+look sane for a video you've calibrated by hand.
 
 ## What's different from `core/` and `dashboard/`
 
