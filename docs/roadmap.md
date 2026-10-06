@@ -446,6 +446,50 @@ than as one large change.
     updating the limit in place. The existing "Road safety near you" card
     (with its fuller World Bank/WHO/weather context) is unchanged.
 
+  - **Diagnosed and partly mitigated inaccurate/missing speeds reported
+    from real on-road testing** (photos from a handheld phone walking
+    alongside a road). Root cause is a fundamental limitation of this
+    method, not a bug: `AutoSpeedEstimator` assumes the *camera* is still
+    and only the vehicle moves, converting pixel displacement to
+    real-world speed from that one assumption. A handheld, walking,
+    panning phone violates it — every detection (including a parked car)
+    picks up spurious apparent motion from the camera's own movement, and
+    a steep/oblique viewing angle down the road (rather than broadside to
+    it) makes the pixel-to-meter conversion unreliable for vehicles moving
+    mostly toward/away from the camera rather than across it. This is the
+    same monocular-vision limitation any uncalibrated camera-based speed
+    system has; true accuracy needs either a fixed, perpendicular camera
+    or a real calibration reference (which is exactly why `core/`'s
+    design and the original repo's intended workflow are a stationary or
+    vehicle-mounted camera filming traffic, not a pedestrian walking with
+    a phone). Two concrete, additive mitigations shipped, neither changing
+    the existing auto/no-calibration behavior on a device that doesn't
+    need them:
+    - `web/src/motion.js` (`ShakeDetector`, new): uses the phone's
+      accelerometer (`devicemotion`) as a cheap proxy for "is the camera
+      being held still right now?" and gates `AutoSpeedEstimator` —
+      speed sampling pauses (shown via a "camera is moving" notice) while
+      the phone is being panned/walked, resuming once it steadies,
+      without resetting a vehicle's existing smoothing window. Devices
+      without a motion sensor, or where permission is denied, simply
+      never engage the gate (fail-open — identical to prior behavior).
+    - `AutoSpeedEstimator` now has a small noise floor (2.5 mph default):
+      an apparent speed below it is reported as 0 rather than a
+      small-but-wrong number, since ordinary detection-box jitter alone
+      produces a couple of mph of noise — showing "2 mph" on a parked car
+      was that noise floor being displayed with false precision, not a
+      measurement.
+    - Added an on-screen tip recommending the phone be held steady (or
+      rested on something) and faced across the road rather than down it.
+    - 10 new tests (`motion.test.js` + `speed.test.js` additions), 89/89
+      passing. **Not fixed, and not fixable without a different capture
+      setup**: estimating speed accurately from a handheld phone looking
+      down the length of a road is an inherently hard monocular-vision
+      problem. For a meaningfully more accurate reading, record with the
+      phone mounted/resting still and roughly perpendicular to traffic
+      flow (the "Upload a video" path works well for this) rather than
+      filming live while walking.
+
 ## Planned, in order
 1. **A road-level crash dataset** — the actual remaining prerequisite for
    `risk_context.py` to become a real risk model instead of "measured

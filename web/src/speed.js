@@ -91,10 +91,20 @@ export const AVG_VEHICLE_WIDTH_M = {
 const DEFAULT_VEHICLE_WIDTH_M = 1.8;
 
 export class AutoSpeedEstimator {
-  /** @param {number} windowSize - number of recent samples to use per track. */
-  constructor(windowSize = 8) {
+  /**
+   * @param {number} windowSize - number of recent samples to use per track.
+   * @param {number} noiseFloorMph - estimates below this are reported as 0
+   *   rather than a small nonzero number. Handheld camera shake and normal
+   *   pixel-level detection jitter alone can read as a couple of mph of
+   *   apparent motion even on a parked vehicle; below this floor the method
+   *   can't distinguish "barely moving" from "not moving, plus noise", so
+   *   reporting a precise-looking small number would be more misleading
+   *   than reporting 0.
+   */
+  constructor(windowSize = 8, noiseFloorMph = 2.5) {
     if (windowSize < 2) throw new Error("windowSize must be at least 2.");
     this.windowSize = windowSize;
+    this.noiseFloorMph = noiseFloorMph;
     this.history = new Map(); // trackId -> [{x, y, t, widthPx}]
   }
 
@@ -144,6 +154,7 @@ export class AutoSpeedEstimator {
     if (speeds.length === 0) return null;
     speeds.sort((a, b) => a - b);
     const mid = Math.floor(speeds.length / 2);
-    return speeds.length % 2 === 0 ? (speeds[mid - 1] + speeds[mid]) / 2 : speeds[mid];
+    const median = speeds.length % 2 === 0 ? (speeds[mid - 1] + speeds[mid]) / 2 : speeds[mid];
+    return median < this.noiseFloorMph ? 0 : median;
   }
 }
