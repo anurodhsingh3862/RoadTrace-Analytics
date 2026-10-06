@@ -102,6 +102,34 @@ test("AutoSpeedEstimator prune drops tracks not updated recently", () => {
   assert.equal(estimator.update(1, "car", 1000, 0, 100, 100.1), null);
 });
 
+test("AutoSpeedEstimator clamps tiny apparent speeds to 0 (noise floor)", () => {
+  const estimator = new AutoSpeedEstimator(4); // default 2.5 mph noise floor
+  const widthPx = 1800; // metersPerPixel = 1.8 / 1800 = 0.001
+  estimator.update(1, "car", 0, 0, widthPx, 0.0);
+  // 10 px in 1 s => 0.01 m/s => ~0.0224 mph of apparent motion: within the
+  // kind of jitter a handheld camera or a parked car's box noise produces,
+  // and well under the floor, so this should read as stopped, not "~0 mph
+  // moving" with false precision.
+  const speed = estimator.update(1, "car", 10, 0, widthPx, 1.0);
+  assert.equal(speed, 0);
+});
+
+test("AutoSpeedEstimator does not clamp a genuine speed above the noise floor", () => {
+  const estimator = new AutoSpeedEstimator(4);
+  const widthPx = 100;
+  estimator.update(1, "car", 0, 0, widthPx, 0.0);
+  const speed = estimator.update(1, "car", 1000, 0, widthPx, 1.0); // far above the floor
+  assert.ok(speed > 2.5, `expected an unclamped speed above the floor, got ${speed}`);
+});
+
+test("AutoSpeedEstimator accepts a custom noise floor", () => {
+  const estimator = new AutoSpeedEstimator(4, 0); // floor disabled
+  const widthPx = 1800;
+  estimator.update(1, "car", 0, 0, widthPx, 0.0);
+  const speed = estimator.update(1, "car", 10, 0, widthPx, 1.0);
+  assert.ok(speed > 0, "expected the tiny speed to pass through unclamped with a 0 floor");
+});
+
 test("AutoSpeedEstimator prune keeps a recently updated track", () => {
   const estimator = new AutoSpeedEstimator(4);
   estimator.update(1, "car", 0, 0, 100, 0.0);

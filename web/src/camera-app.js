@@ -32,6 +32,7 @@
 import { VehicleDetector } from "./detector.js";
 import { IouTracker } from "./tracker.js";
 import { AutoSpeedEstimator } from "./speed.js";
+import { ShakeDetector } from "./motion.js";
 import { MODEL_INPUT_SIZE } from "./postprocess.js";
 import { fetchRoadSafetyContext, getNearbySpeedLimit, cToF, kmhToMph, mmToIn, metersToMiles, compassDirection, aqiCategory } from "./context.js";
 import {
@@ -113,6 +114,8 @@ const scratchCtx = scratch.getContext("2d", { willReadFrequently: true });
 const detector = new VehicleDetector();
 const tracker = new IouTracker();
 const speedEstimator = new AutoSpeedEstimator();
+const shakeDetector = new ShakeDetector();
+const stabilityNoticeEl = document.getElementById("stability-notice");
 let startTime = null;
 let running = false;
 
@@ -151,6 +154,31 @@ fileInput.addEventListener("change", () => {
   setStatus(t("status_playing_file"));
 });
 
+function handleDeviceMotion(event) {
+  const acc = event.acceleration || event.accelerationIncludingGravity;
+  if (!acc) return;
+  shakeDetector.update(acc.x, acc.y, acc.z);
+}
+
+// Only meaningful for the live camera (an uploaded file has no "camera
+// movement" of its own to detect) and only wired up once the camera
+// actually starts, since iOS requires the permission prompt to happen in
+// direct response to a user gesture. On a device/browser without a motion
+// sensor, or if permission is denied, this silently no-ops — ShakeDetector
+// then stays at its default "steady" state forever, so the feature simply
+// doesn't engage rather than breaking anything.
+function startMotionGuard() {
+  if (typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function") {
+    DeviceMotionEvent.requestPermission()
+      .then((state) => {
+        if (state === "granted") window.addEventListener("devicemotion", handleDeviceMotion);
+      })
+      .catch(() => {});
+  } else if (typeof window !== "undefined" && "DeviceMotionEvent" in window) {
+    window.addEventListener("devicemotion", handleDeviceMotion);
+  }
+}
+
 cameraButton.addEventListener("click", async () => {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
@@ -164,6 +192,7 @@ cameraButton.addEventListener("click", async () => {
     // from somewhere else would get a nearby-to-you limit that has
     // nothing to do with where it was recorded.
     fetchHudSpeedLimit();
+    startMotionGuard();
   } catch (err) {
     setStatus(t("status_camera_error"));
   }
@@ -400,15 +429,25 @@ async function frameLoop() {
   // Road point = box bottom-center (where the vehicle meets the road),
   // same point speed.js's calibrated estimator used — see its update()
   // signature for why that's the point to track rather than the box center.
+  // While the phone itself is being moved/panned (per shakeDetector), skip
+  // feeding this frame's positions into the estimator rather than resetting
+  // a vehicle's history — a brief shake just pauses new samples; the
+  // existing window of good samples keeps smoothing once it steadies again.
+  // See motion.js for why a moving camera makes every box's apparent
+  // motion unreliable, not just the ones that look wrong.
+  const steady = shakeDetector.isSteady();
   const speedByTrackId = new Map();
-  for (const det of tracked) {
-    const boxWidthPx = det.x2 - det.x1;
-    const roadX = (det.x1 + det.x2) / 2;
-    const roadY = det.y2;
-    const speed = speedEstimator.update(det.trackId, det.className, roadX, roadY, boxWidthPx, timestampS);
-    if (speed != null) speedByTrackId.set(det.trackId, speed);
+  if (steady) {
+    for (const det of tracked) {
+      const boxWidthPx = det.x2 - det.x1;
+      const roadX = (det.x1 + det.x2) / 2;
+      const roadY = det.y2;
+      const speed = speedEstimator.update(det.trackId, det.className, roadX, roadY, boxWidthPx, timestampS);
+      if (speed != null) speedByTrackId.set(det.trackId, speed);
+    }
   }
   speedEstimator.prune(timestampS);
+  if (stabilityNoticeEl) stabilityNoticeEl.hidden = steady;
 
   drawDetections(tracked, speedByTrackId);
   renderVehicleList(tracked, speedByTrackId);
