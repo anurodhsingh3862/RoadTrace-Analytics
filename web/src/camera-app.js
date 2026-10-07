@@ -440,9 +440,15 @@ async function frameLoop() {
   if (steady) {
     for (const det of tracked) {
       const boxWidthPx = det.x2 - det.x1;
+      const boxHeightPx = det.y2 - det.y1;
       const roadX = (det.x1 + det.x2) / 2;
       const roadY = det.y2;
-      const speed = speedEstimator.update(det.trackId, det.className, roadX, roadY, boxWidthPx, timestampS);
+      // boxHeightPx lets the estimator tell a broadside vehicle (wide, short
+      // box -> scale by vehicle length) from a head-on/rear-on one (taller,
+      // squarer box -> scale by vehicle width) — see speed.js for why that
+      // distinction was previously the single biggest source of
+      // underestimated speeds.
+      const speed = speedEstimator.update(det.trackId, det.className, roadX, roadY, boxWidthPx, timestampS, boxHeightPx);
       if (speed != null) speedByTrackId.set(det.trackId, speed);
     }
   }

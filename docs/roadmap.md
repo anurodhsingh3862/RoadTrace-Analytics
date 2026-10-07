@@ -490,6 +490,32 @@ than as one large change.
       flow (the "Upload a video" path works well for this) rather than
       filming live while walking.
 
+  - **Fixed a real sizing bug that was understating speed by roughly
+    2-3x for broadside traffic** (a car crossing the frame side-on, the
+    most common framing). `AutoSpeedEstimator` converts a detection box's
+    pixel width to a real-world distance using an assumed vehicle size —
+    but a box's pixel *width* means different things depending on viewing
+    angle: head-on/rear-on, it spans the vehicle's actual width (~1.8m
+    for a car); broadside, it spans nose-to-tail, i.e. the vehicle's
+    *length* (~4.5m). The code was always using the width constant,
+    which is correct for head-on traffic but badly understates distance
+    (and therefore speed) for the broadside case — exactly what real
+    street photos showed (cars visibly doing city-street speeds reading
+    as 3-8 mph). Also worth stating plainly: phone GPS can't fix this —
+    it reports the *phone's* speed, not a third-party vehicle's, so it's
+    only useful for where the phone is (which is what the posted-speed-
+    limit lookup already uses it for), not for timing traffic. Fixed by
+    adding a width-to-height aspect-ratio check: a wide, short box is now
+    read as broadside and scaled by an assumed vehicle *length*
+    (`AVG_VEHICLE_LENGTH_M`); a taller/squarer box is scaled by width as
+    before. Backward compatible — `AutoSpeedEstimator.update()`'s new
+    `heightPx` parameter is optional and trailing, so omitting it
+    reproduces the old (width-only) behavior exactly. 3 new tests, 82/82
+    passing. Still an approximation — a 3/4-angle vehicle isn't fully
+    either case, and the underlying handheld-camera/viewing-angle
+    limitations above still apply — but this removes what was the single
+    largest source of error in the numbers reported from real testing.
+
 ## Planned, in order
 1. **A road-level crash dataset** — the actual remaining prerequisite for
    `risk_context.py` to become a real risk model instead of "measured

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { Calibration, SpeedEstimator, AutoSpeedEstimator, AVG_VEHICLE_WIDTH_M } from "./speed.js";
+import { Calibration, SpeedEstimator, AutoSpeedEstimator, AVG_VEHICLE_WIDTH_M, AVG_VEHICLE_LENGTH_M } from "./speed.js";
 const MPH_PER_MPS = 2.236936;
 
 test("Calibration rejects coincident points", () => {
@@ -92,6 +92,40 @@ test("AutoSpeedEstimator reset clears a track's history", () => {
   estimator.update(1, "car", 0, 0, 100, 0.0);
   estimator.reset(1);
   assert.equal(estimator.update(1, "car", 1000, 0, 100, 1.0), null);
+});
+
+test("AutoSpeedEstimator without a height behaves exactly as before (width-only)", () => {
+  const estimator = new AutoSpeedEstimator(4);
+  const widthPx = 100;
+  estimator.update(1, "car", 0, 0, widthPx, 0.0);
+  const speed = estimator.update(1, "car", 1000, 0, widthPx, 1.0); // no heightPx passed
+  const expectedMph = 1000 * (AVG_VEHICLE_WIDTH_M.car / widthPx) * MPH_PER_MPS;
+  assert.ok(Math.abs(speed - expectedMph) < 0.01, `expected unchanged width-only behavior, got ${speed}`);
+});
+
+test("AutoSpeedEstimator scales by vehicle length for a broadside (wide, short) box", () => {
+  const estimator = new AutoSpeedEstimator(4);
+  const widthPx = 300;
+  const heightPx = 150; // aspect 2.0 => broadside => scaled by AVG_VEHICLE_LENGTH_M.car (4.5m), not width (1.8m)
+  estimator.update(1, "car", 0, 0, widthPx, 0.0, heightPx);
+  const speed = estimator.update(1, "car", 300, 0, widthPx, 1.0, heightPx);
+  const expectedMph = 300 * (AVG_VEHICLE_LENGTH_M.car / widthPx) * MPH_PER_MPS;
+  assert.ok(Math.abs(speed - expectedMph) < 0.01, `expected length-scaled speed ~${expectedMph}, got ${speed}`);
+  // Sanity: the broadside (length-scaled) reading should come out noticeably
+  // higher than naively using the width constant would have, since this is
+  // exactly the under-counting bug being fixed.
+  const widthScaledMph = 300 * (AVG_VEHICLE_WIDTH_M.car / widthPx) * MPH_PER_MPS;
+  assert.ok(speed > widthScaledMph * 2, "expected the length-based estimate to be well above the old width-based one");
+});
+
+test("AutoSpeedEstimator scales by vehicle width for a head-on/rear-on (tall/square) box", () => {
+  const estimator = new AutoSpeedEstimator(4);
+  const widthPx = 100;
+  const heightPx = 110; // aspect < 1.3 => treated as head-on/rear-on => width constant
+  estimator.update(1, "car", 0, 0, widthPx, 0.0, heightPx);
+  const speed = estimator.update(1, "car", 100, 0, widthPx, 1.0, heightPx);
+  const expectedMph = 100 * (AVG_VEHICLE_WIDTH_M.car / widthPx) * MPH_PER_MPS;
+  assert.ok(Math.abs(speed - expectedMph) < 0.01, `expected width-scaled speed ~${expectedMph}, got ${speed}`);
 });
 
 test("AutoSpeedEstimator prune drops tracks not updated recently", () => {
