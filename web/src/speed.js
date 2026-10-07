@@ -207,14 +207,39 @@ export class AutoSpeedEstimator {
    *   a pair have one. Falls back to the width/length heuristic otherwise,
    *   so a session with no detectable lane markings behaves exactly as
    *   before.
+   * @param {import("./depth-calibration.js").DepthCalibration|null} [depthCalibration] -
+   *   a scene-derived depth (toward/away-from-camera) scale from
+   *   depth-calibration.js's single-view metrology, built from a detected
+   *   dashed-lane-marking cycle. calibration.js's metersPerPixelOverride is
+   *   only rigorous for LATERAL motion (across the lane); applying it to
+   *   the full 2D pixel displacement, as this method does by default,
+   *   treats depth motion as if it had the same scale, which is an
+   *   approximation (see calibration.js's scope note). When both points in
+   *   a pair carry this AND metersPerPixelOverride, this instead decomposes
+   *   the displacement into its lateral component (dx, scaled by
+   *   metersPerPixelOverride) and its depth component (the real
+   *   depthMetersBetweenRows distance between the two rows), combining them
+   *   via Math.hypot — a real 2D ground-plane measurement instead of a
+   *   single-scale approximation. Optional and trailing for backward
+   *   compatibility; omitted or null, behavior is unchanged.
    * @returns {number|null} speed in mph, or null if not enough history yet
    */
-  update(trackId, className, x, y, widthPx, timestampS, heightPx = null, metersPerPixelOverride = null) {
+  update(
+    trackId,
+    className,
+    x,
+    y,
+    widthPx,
+    timestampS,
+    heightPx = null,
+    metersPerPixelOverride = null,
+    depthCalibration = null
+  ) {
     if (!(widthPx > 0)) return null;
     if (!this.history.has(trackId)) this.history.set(trackId, []);
     const points = this.history.get(trackId);
     const realSizeM = assumedRealSizeM(className, widthPx, heightPx);
-    points.push({ x, y, t: timestampS, widthPx, realSizeM, metersPerPixelOverride });
+    points.push({ x, y, t: timestampS, widthPx, realSizeM, metersPerPixelOverride, depthCalibration });
     while (points.length > this.windowSize) points.shift();
     if (points.length < 2) return null;
 
@@ -232,8 +257,21 @@ export class AutoSpeedEstimator {
         const avgRealSizeM = (a.realSizeM + b.realSizeM) / 2;
         metersPerPixel = avgRealSizeM / avgWidthPx;
       }
-      const dPixels = Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
-      speeds.push(((dPixels * metersPerPixel) / dt) * MPH_PER_MPS);
+
+      let metersMoved = null;
+      if (a.depthCalibration != null && a.depthCalibration === b.depthCalibration && a.metersPerPixelOverride != null && b.metersPerPixelOverride != null) {
+        const depthMeters = a.depthCalibration.depthMetersBetweenRows(a.y, b.y);
+        if (depthMeters != null) {
+          const dxPixels = a.x - b.x;
+          const lateralMeters = dxPixels * metersPerPixel;
+          metersMoved = Math.hypot(lateralMeters, depthMeters);
+        }
+      }
+      if (metersMoved == null) {
+        const dPixels = Math.hypot(a.x - b.x, a.y - b.y);
+        metersMoved = dPixels * metersPerPixel;
+      }
+      speeds.push((metersMoved / dt) * MPH_PER_MPS);
     }
     if (speeds.length === 0) return null;
     speeds.sort((a, b) => a - b);

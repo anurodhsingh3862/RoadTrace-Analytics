@@ -713,6 +713,58 @@ than as one large change.
     itself still isn't unit-testable here (needs a real ONNX runtime) —
     verify `detectTiered()` by running it in a browser.
 
+- [x] `web/src/depth-calibration.js` (new) — **depth-axis (toward/away from
+  camera) geometric calibration**, closing the one gap `calibration.js`'s
+  own scope note flags: that module gives a rigorous pixel-to-meter scale
+  for motion ACROSS the lane, but only an approximation for motion straight
+  toward/away from the camera, since that needs one more independently-known
+  real-world length that lane geometry alone can't supply. This module
+  supplies it — not via camera height or focal length (the assumption the
+  prior review's write-up incorrectly claimed was required), but via a
+  standard painted dashed-lane-marking cycle, combined with the vanishing
+  point `calibration.js` already detects, using a classic single-view-
+  metrology result: for points receding along a straight line toward a
+  vanishing point, real depth `Z(y) = C / (y - vpY)`, where `C` is a single
+  constant solvable from any one already-known real-world distance between
+  two rows on that line.
+  - **Method**: samples brightness along a detected lane line from the
+    vanishing point outward, finds the rows where it rises from dark
+    pavement to a bright painted stripe (the leading edge of each dash —
+    consecutive edges are, by definition, exactly one dash cycle apart in
+    the real world), and solves for `C` from each consecutive pair, using
+    the median across all pairs as the final, outlier-resistant estimate.
+  - **Honestly scoped**: the one assumption this adds is a standard US
+    MUTCD dashed-lane-line cycle (10ft stripe + 30ft gap, ~12.19m) — the
+    same category of regionally-typical default as `calibration.js`'s 3.7m
+    lane width, not a universal constant; urban and local roads often use
+    shorter cycles. Models distance along the detected lane line's
+    direction, which stands in for true forward depth only when the camera
+    is reasonably aligned with the road — the same assumption every
+    vanishing-point method here already makes. Silently returns null
+    whenever a confident dash pattern can't be found (a solid line, faded
+    paint, a non-standard cycle length, poor lighting), exactly like every
+    other calibration path on this page — callers fall back to the
+    existing lateral-only approximation as if this module weren't there.
+  - **Wiring** (`camera-app.js`, `speed.js`): attempted once per captured
+    calibration frame, right alongside the existing lane-geometry attempt,
+    reusing the same frame and detected geometry rather than a second
+    capture/detection pass. `AutoSpeedEstimator.update()` (speed.js) gained
+    a new, optional, trailing `depthCalibration` parameter: when both points
+    in a pair carry it AND a `metersPerPixelOverride`, displacement is
+    decomposed into its lateral component (scaled by the existing lateral
+    meters-per-pixel) and its depth component (this module's real
+    `depthMetersBetweenRows` distance), combined via `Math.hypot` for an
+    actual 2D ground-plane measurement — rather than applying one scale to
+    the raw pixel distance as calibration.js's own scope note says is only
+    an approximation for depth motion. Omitted or null (no confident dash
+    pattern found), behavior is unchanged.
+  - 14 new tests (`depth-calibration.test.js`) plus 4 more in `speed.test.js`
+    covering the decomposition/fallback logic, 149/149 passing. **Not yet
+    field-verified against a real painted dashed lane line** — the
+    synthetic-raster tests check the math is right, but real paint, real
+    lighting, and real dash-cycle variation are still open until tested
+    against actual road footage.
+
 ## Planned, in order
 1. **A road-level crash dataset** — the actual remaining prerequisite for
    `risk_context.py` to become a real risk model instead of "measured
