@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Calibration, SpeedEstimator, AutoSpeedEstimator, AVG_VEHICLE_WIDTH_M, AVG_VEHICLE_LENGTH_M } from "./speed.js";
+import { DepthCalibration } from "./depth-calibration.js";
 const MPH_PER_MPS = 2.236936;
 
 test("Calibration rejects coincident points", () => {
@@ -147,6 +148,59 @@ test("AutoSpeedEstimator falls back to the heuristic for a pair where only one p
   const speed = estimator.update(1, "car", 1000, 0, widthPx, 1.0); // no override this frame
   const expectedMph = 1000 * (AVG_VEHICLE_WIDTH_M.car / widthPx) * MPH_PER_MPS;
   assert.ok(Math.abs(speed - expectedMph) < 0.01, `expected the width heuristic since the pair isn't fully calibrated, got ${speed}`);
+});
+
+test("AutoSpeedEstimator decomposes lateral+depth motion when a depthCalibration is provided alongside an override", () => {
+  const estimator = new AutoSpeedEstimator(4);
+  const widthPx = 100;
+  const metersPerPixel = 0.02; // lateral scale
+  const depth = new DepthCalibration(5000, 10); // depthAt(y) = 5000 / (y - 10)
+  // Vehicle moves from row 60 to row 110 (pure depth motion, no lateral dx),
+  // over the same x. depthAt(60) = 100, depthAt(110) = 50, so the real
+  // depth traveled is 50m, not whatever Math.hypot(dx=0, dy=50) * metersPerPixel
+  // (i.e. 50px * 0.02 = 1m) would say if the pixel distance were scaled
+  // directly by the lateral meters-per-pixel instead.
+  estimator.update(1, "car", 0, 60, widthPx, 0.0, null, metersPerPixel, depth);
+  const speed = estimator.update(1, "car", 0, 110, widthPx, 1.0, null, metersPerPixel, depth);
+  const expectedMph = 50 * MPH_PER_MPS; // 50 real meters in 1 second
+  assert.ok(Math.abs(speed - expectedMph) < 0.5, `expected depth-decomposed speed ~${expectedMph}, got ${speed}`);
+  const naiveMph = 50 * metersPerPixel * MPH_PER_MPS; // what the old single-scale approximation would say
+  assert.notEqual(Math.round(speed), Math.round(naiveMph), "expected depth calibration to actually change the result");
+});
+
+test("AutoSpeedEstimator combines lateral and depth components via hypot when a vehicle moves diagonally", () => {
+  const estimator = new AutoSpeedEstimator(4);
+  const widthPx = 100;
+  const metersPerPixel = 0.02;
+  const depth = new DepthCalibration(5000, 10);
+  estimator.update(1, "car", 0, 60, widthPx, 0.0, null, metersPerPixel, depth);
+  const speed = estimator.update(1, "car", 300, 110, widthPx, 1.0, null, metersPerPixel, depth);
+  const lateralMeters = 300 * metersPerPixel; // 6m
+  const depthMeters = 50; // depthAt(60)=100, depthAt(110)=50
+  const expectedMph = Math.hypot(lateralMeters, depthMeters) * MPH_PER_MPS;
+  assert.ok(Math.abs(speed - expectedMph) < 0.5, `expected hypot-combined speed ~${expectedMph}, got ${speed}`);
+});
+
+test("AutoSpeedEstimator falls back to the single-scale approximation when only one point has a depthCalibration", () => {
+  const estimator = new AutoSpeedEstimator(4, 0); // noise floor disabled: isolate the scale-selection logic
+  const widthPx = 100;
+  const metersPerPixel = 0.02;
+  const depth = new DepthCalibration(5000, 10);
+  estimator.update(1, "car", 0, 60, widthPx, 0.0, null, metersPerPixel, depth);
+  const speed = estimator.update(1, "car", 0, 110, widthPx, 1.0, null, metersPerPixel); // no depthCalibration this frame
+  const expectedMph = 50 * metersPerPixel * MPH_PER_MPS; // plain hypot(dx,dy) * metersPerPixel, as before
+  assert.ok(Math.abs(speed - expectedMph) < 0.01, `expected the plain override behavior, got ${speed}`);
+});
+
+test("AutoSpeedEstimator ignores depthCalibration when the metersPerPixelOverride is missing", () => {
+  const estimator = new AutoSpeedEstimator(4, 0); // noise floor disabled: isolate the scale-selection logic
+  const widthPx = 100;
+  const depth = new DepthCalibration(5000, 10);
+  estimator.update(1, "car", 0, 60, widthPx, 0.0, null, null, depth);
+  const speed = estimator.update(1, "car", 0, 110, widthPx, 1.0, null, null, depth);
+  // No metersPerPixelOverride at all: should fall back to the width heuristic, unaffected by depthCalibration.
+  const expectedMph = 50 * (AVG_VEHICLE_WIDTH_M.car / widthPx) * MPH_PER_MPS;
+  assert.ok(Math.abs(speed - expectedMph) < 0.01, `expected the width heuristic, got ${speed}`);
 });
 
 test("AutoSpeedEstimator getSampleCount reports 0 for an unknown track", () => {

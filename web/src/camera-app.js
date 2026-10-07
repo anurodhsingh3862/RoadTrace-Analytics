@@ -45,11 +45,26 @@
 // occluded markings, poor lighting), this silently falls back to the
 // per-class size heuristic — the HUD's calibration chip shows which mode is
 // active.
+//
+// On top of THAT, this page also attempts DEPTH-AXIS calibration
+// (depth-calibration.js) right after a successful lane-geometry calibration:
+// if a detected lane line shows a confident standard dashed-marking pattern,
+// it supplies the one additional real-world length needed to get a rigorous
+// scale for motion straight toward/away from the camera too — the exact gap
+// calibration.js's own scope note above flags. When found, speed.js combines
+// it with the lateral scale via Math.hypot for a real 2D ground-plane
+// measurement instead of applying one scale to the full pixel displacement.
+// Just as silent a fallback as the rest of this calibration chain: most
+// scenes won't show a confident dash pattern (solid lines, faded paint, a
+// non-US-standard cycle length), and that's fine — it just means depth
+// motion keeps using the lateral-scale approximation, exactly as before this
+// was added.
 import { VehicleDetector } from "./detector.js";
 import { IouTracker } from "./tracker.js";
 import { AutoSpeedEstimator } from "./speed.js";
 import { ShakeDetector } from "./motion.js";
-import { detectLaneGeometry, PerspectiveCalibration } from "./calibration.js";
+import { detectLaneGeometry, PerspectiveCalibration, toGrayscale } from "./calibration.js";
+import { detectDepthCalibrationFromGeometry, DepthCalibration } from "./depth-calibration.js";
 import { isWithinScoringRoi } from "./roi.js";
 import { classifyTilt } from "./tilt.js";
 import { classifyMeasurementConfidence } from "./confidence.js";
@@ -157,6 +172,13 @@ let running = false;
 // honestly-documented scope — lateral motion only). Falls back silently to
 // the heuristic whenever no confident lane geometry is found.
 let perspectiveCalibration = null;
+// Depth-axis scale (depth-calibration.js), attempted alongside the lateral
+// perspectiveCalibration above whenever a lane line shows a confident
+// dashed-marking pattern. Independent of perspectiveCalibration in whether
+// it succeeds (a scene can have clean lane geometry but a solid, non-dashed
+// line, or vice versa) but only ever attempted once lane geometry itself has
+// already been found, since it reuses that geometry's vanishing point.
+let depthCalibration = null;
 let calibrationAttempts = 0;
 const MAX_CALIBRATION_ATTEMPTS = 6; // a handful of tries over the first ~20s, then give up quietly
 const calibrationChipEl = document.getElementById("hud-calibration-chip");
@@ -203,6 +225,22 @@ function attemptCalibration() {
   const invScale = 1 / scale;
   const scaled = (line) => ({ m: line.m * invScale, b: line.b * invScale });
   perspectiveCalibration = new PerspectiveCalibration(scaled(geometry.leftLine), scaled(geometry.rightLine));
+
+  // Depth-axis calibration (see depth-calibration.js) reuses this same
+  // captured frame and detected geometry — no extra capture or detection
+  // pass needed. Solved in the downscaled calibration frame's coordinate
+  // space (same as the lane lines above), then rescaled to full video
+  // pixel space: a depth constant C obeys Z(y) = C/(y - vpY), and scaling
+  // both y and vpY by invScale means C must scale by invScale too for Z to
+  // come out the same real-world distance. Silently left null (the
+  // lateral-only approximation) when no confident dash pattern is found,
+  // exactly like perspectiveCalibration itself falls back to the per-class
+  // heuristic.
+  const gray = toGrayscale(imageData.data, w, h);
+  const rawDepthCalibration = detectDepthCalibrationFromGeometry(gray, w, h, geometry);
+  if (rawDepthCalibration) {
+    depthCalibration = new DepthCalibration(rawDepthCalibration.depthConstant * invScale, geometry.vanishingPoint.y * invScale);
+  }
   renderCalibrationStatus();
 }
 
@@ -215,6 +253,7 @@ let calibrationTimer = null;
  * picking up the phone and aiming it. */
 function startCalibrationSchedule() {
   perspectiveCalibration = null;
+  depthCalibration = null;
   calibrationAttempts = 0;
   renderCalibrationStatus();
   if (calibrationTimer) clearInterval(calibrationTimer);
@@ -782,6 +821,11 @@ async function frameLoop(mediaTimeS) {
       // at this exact road row takes priority over the assumed-size
       // heuristic entirely — see speed.js's metersPerPixelOverride.
       const metersPerPixelOverride = perspectiveCalibration ? perspectiveCalibration.metersPerPixelAt(roadY) : null;
+      // depthCalibration (depth-calibration.js) only actually changes
+      // anything inside speed.js when BOTH points in a pair carry it and a
+      // metersPerPixelOverride — passing it here whenever it exists is safe
+      // even on a frame where lane geometry (and so metersPerPixelOverride)
+      // temporarily isn't available; speed.js just falls back as usual.
       const speed = speedEstimator.update(
         det.trackId,
         det.className,
@@ -790,7 +834,8 @@ async function frameLoop(mediaTimeS) {
         boxWidthPx,
         timestampS,
         boxHeightPx,
-        metersPerPixelOverride
+        metersPerPixelOverride,
+        depthCalibration
       );
       if (speed != null) {
         speedByTrackId.set(det.trackId, speed);
