@@ -471,7 +471,15 @@ function drawDetections(detections, speedByTrackId = new Map()) {
     const boxHeight = det.y2 - det.y1;
     overlayCtx.strokeStyle = "#ff6b1f";
     overlayCtx.lineWidth = 2.5;
+    // A dashed box marks a frame where this vehicle was only matched via
+    // tracker.js's low-confidence second stage (see its header) — a brief,
+    // partially occluded moment rather than a clean detection. Same
+    // transparency-over-polish instinct as every other honesty label on
+    // this page: the box is still drawn (so the vehicle doesn't just
+    // vanish), but visibly marked as a lower-quality frame.
+    overlayCtx.setLineDash(det.fromLowConfidence ? [6, 4] : []);
     overlayCtx.strokeRect(det.x1, det.y1, boxWidth, boxHeight);
+    overlayCtx.setLineDash([]);
 
     // Small/distant boxes get a smaller label so it doesn't dwarf the
     // vehicle it's labeling or collide with a neighbor's. The estimated
@@ -721,10 +729,20 @@ async function frameLoop(mediaTimeS) {
   if (startTime === null) startTime = mediaTimeS;
   const timestampS = mediaTimeS - startTime;
 
-  const raw = await detector.detect(video, scratchCtx, video.videoWidth, video.videoHeight, {
-    confThreshold: 0.3,
-  });
-  const tracked = tracker.update(raw);
+  // Tiered detection (see detector.js/postprocess.js/tracker.js): the
+  // normal-confidence set is used for display and can start new tracks,
+  // same as always; the low-confidence set can only extend a track that
+  // the normal set failed to match this frame, letting a briefly, partially
+  // occluded vehicle's track survive with an updated position instead of
+  // just going quiet for a frame.
+  const { detections: raw, lowConfidenceDetections } = await detector.detectTiered(
+    video,
+    scratchCtx,
+    video.videoWidth,
+    video.videoHeight,
+    { confThreshold: 0.3, lowConfThreshold: 0.1 }
+  );
+  const tracked = tracker.update(raw, lowConfidenceDetections);
 
   // Road point = box bottom-center (where the vehicle meets the road),
   // same point speed.js's calibrated estimator used — see its update()

@@ -5,6 +5,7 @@ import {
   nonMaxSuppression,
   scaleDetections,
   postprocess,
+  postprocessTiered,
   VEHICLE_CLASS_IDS,
 } from "./postprocess.js";
 
@@ -110,4 +111,44 @@ test("postprocess runs the full pipeline end to end", () => {
   assert.equal(result.length, 1);
   assert.equal(result[0].className, "car");
   assert.equal(result[0].x1, (320 - 50) * 2);
+});
+
+test("postprocessTiered splits detections into a high- and low-confidence tier", () => {
+  const numAnchors = 2;
+  const data = buildOutput(numAnchors, [
+    { index: 0, cx: 100, cy: 100, w: 40, h: 20, classId: 2, score: 0.8 }, // well above confThreshold
+    { index: 1, cx: 500, cy: 100, w: 40, h: 20, classId: 2, score: 0.15 }, // below confThreshold, above lowConfThreshold
+  ]);
+  const { detections, lowConfidenceDetections } = postprocessTiered(data, numAnchors, 1280, 640, {
+    confThreshold: 0.3,
+    lowConfThreshold: 0.1,
+  });
+  assert.equal(detections.length, 1);
+  assert.ok(Math.abs(detections[0].score - 0.8) < 1e-6);
+  assert.equal(lowConfidenceDetections.length, 1);
+  assert.ok(Math.abs(lowConfidenceDetections[0].score - 0.15) < 1e-6);
+});
+
+test("postprocessTiered's high-confidence tier matches postprocess() exactly for the same options", () => {
+  const numAnchors = 3;
+  const data = buildOutput(numAnchors, [
+    { index: 0, cx: 320, cy: 320, w: 100, h: 60, classId: 2, score: 0.9 },
+    { index: 1, cx: 325, cy: 322, w: 100, h: 60, classId: 2, score: 0.7 }, // overlaps anchor 0
+    { index: 2, cx: 700, cy: 300, w: 40, h: 20, classId: 2, score: 0.05 }, // below even the low threshold
+  ]);
+  const options = { confThreshold: 0.3, lowConfThreshold: 0.1 };
+  const plain = postprocess(data, numAnchors, 1280, 640, options);
+  const { detections, lowConfidenceDetections } = postprocessTiered(data, numAnchors, 1280, 640, options);
+  assert.deepEqual(detections, plain);
+  assert.equal(lowConfidenceDetections.length, 0); // the 0.05-score anchor is below lowConfThreshold too
+});
+
+test("postprocessTiered returns no low-confidence tier when lowConfThreshold is not below confThreshold", () => {
+  const numAnchors = 1;
+  const data = buildOutput(numAnchors, [{ index: 0, cx: 100, cy: 100, w: 40, h: 20, classId: 2, score: 0.5 }]);
+  const { lowConfidenceDetections } = postprocessTiered(data, numAnchors, 1280, 640, {
+    confThreshold: 0.3,
+    lowConfThreshold: 0.3,
+  });
+  assert.equal(lowConfidenceDetections.length, 0);
 });

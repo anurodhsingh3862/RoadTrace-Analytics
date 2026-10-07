@@ -678,6 +678,41 @@ than as one large change.
   - 11 new tests (8 in `confidence.test.js`, 3 covering `getSampleCount` in
     `speed.test.js`), 123/123 passing.
 
+- [x] **ByteTrack-style low-confidence box retention** in `web/src/tracker.js`
+  — borrows the single most load-bearing idea from ByteTrack (the real
+  tracker this project's `IouTracker` deliberately isn't a full port of)
+  without needing a Python runtime: a SECOND matching pass, after the
+  normal one, against detections that scored below the display confidence
+  threshold and would otherwise be thrown away before ever reaching the
+  tracker. A vehicle that's briefly, partially occluded (another car
+  passing in front of it, a moment of motion blur) often still produces a
+  detection box — just a low-scoring one. Previously that meant the track
+  went quiet for that frame with no position update at all; now it can be
+  extended through the gap.
+  - The key asymmetry that keeps this safe: a low-confidence detection can
+    only EXTEND a track the normal pass failed to match — it can never
+    start a brand-new one. A noisy, low-confidence box can confirm "the
+    vehicle that was already here is still here," never invent a vehicle
+    that was never confidently seen in the first place.
+  - `web/src/postprocess.js` gained `postprocessTiered()`, decoding once at
+    a lower threshold and running NMS over the combined pool before
+    splitting by score (rather than two independent NMS passes that could
+    disagree with each other at the tier boundary). `web/src/detector.js`
+    gained a matching `detectTiered()`, sharing the actual inference call
+    with the existing `detect()` and differing only in postprocessing.
+    `tracker.js`'s `update()` keeps its original one-argument signature
+    working exactly as before — the low-confidence array is a new, optional
+    second argument.
+  - A box drawn from a low-confidence match gets a dashed outline on the
+    camera view instead of a solid one — same transparency instinct as
+    every other honesty label on this page: the vehicle doesn't just
+    disappear, but a lower-quality frame is visibly marked as one.
+  - 8 new tests (5 in `tracker.test.js`, 3 in `postprocess.test.js`,
+    covering the tiering logic and the exact-match guarantee against
+    `postprocess()`'s existing behavior), 131/131 passing. `detector.js`
+    itself still isn't unit-testable here (needs a real ONNX runtime) —
+    verify `detectTiered()` by running it in a browser.
+
 ## Planned, in order
 1. **A road-level crash dataset** — the actual remaining prerequisite for
    `risk_context.py` to become a real risk model instead of "measured

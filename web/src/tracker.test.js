@@ -83,3 +83,53 @@ test("the centroid fallback prefers the closer of two candidate detections", () 
   assert.equal(closer.trackId, a.trackId);
   assert.notEqual(farther.trackId, a.trackId);
 });
+
+test("a low-confidence detection extends an existing track through a brief occlusion", () => {
+  const tracker = new IouTracker();
+  const [a] = tracker.update([det(2, 0, 0, 40, 20)]);
+  // No full-confidence detection this frame (occluded), but the detector
+  // still produced a low-confidence box roughly where the vehicle should be.
+  const second = tracker.update([], [det(2, 2, 0, 42, 20, 0.15)]);
+  assert.equal(second.length, 1);
+  assert.equal(second[0].trackId, a.trackId);
+  assert.equal(second[0].fromLowConfidence, true);
+});
+
+test("a low-confidence detection never starts a new track", () => {
+  const tracker = new IouTracker();
+  // No existing tracks at all; a low-confidence-only frame should produce
+  // nothing rather than inventing a vehicle that was never confidently seen.
+  const result = tracker.update([], [det(2, 0, 0, 40, 20, 0.15)]);
+  assert.equal(result.length, 0);
+});
+
+test("a low-confidence detection does not steal a track that a full-confidence detection already matched", () => {
+  const tracker = new IouTracker();
+  const [a] = tracker.update([det(2, 0, 0, 40, 20)]);
+  // Both a real detection AND a low-confidence one near the same spot --
+  // the full-confidence one should win stage 1, and the low-confidence one
+  // should be left over (no second track, no double-counting).
+  const second = tracker.update([det(2, 2, 0, 42, 20)], [det(2, 1, 0, 41, 20, 0.15)]);
+  assert.equal(second.length, 1);
+  assert.equal(second[0].trackId, a.trackId);
+  assert.ok(!second[0].fromLowConfidence);
+});
+
+test("omitting lowConfidenceDetections entirely behaves exactly as before", () => {
+  const tracker = new IouTracker();
+  const first = tracker.update([det(2, 0, 0, 40, 20)]);
+  const second = tracker.update([det(2, 2, 0, 42, 20)]);
+  assert.equal(first[0].trackId, second[0].trackId);
+  assert.ok(!second[0].fromLowConfidence);
+});
+
+test("a low-confidence match resets the missed counter, so the track doesn't age out during an occlusion", () => {
+  const tracker = new IouTracker({ maxMissedFrames: 1 });
+  const [a] = tracker.update([det(2, 0, 0, 40, 20)]);
+  // maxMissedFrames is 1: without the low-confidence match counting as
+  // "seen", two consecutive quiet frames would drop the track entirely.
+  tracker.update([], [det(2, 2, 0, 42, 20, 0.15)]);
+  tracker.update([], [det(2, 4, 0, 44, 20, 0.15)]);
+  const fourth = tracker.update([det(2, 6, 0, 46, 20)]);
+  assert.equal(fourth[0].trackId, a.trackId);
+});
