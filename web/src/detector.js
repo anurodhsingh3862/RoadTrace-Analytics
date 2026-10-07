@@ -5,7 +5,7 @@
 // this module by actually running it in a browser; that's outside what
 // this environment can check.
 import * as ort from "onnxruntime-web";
-import { postprocess, MODEL_INPUT_SIZE } from "./postprocess.js";
+import { postprocess, postprocessTiered, MODEL_INPUT_SIZE } from "./postprocess.js";
 
 // Explicit, so the .wasm binary loads from the same pinned CDN version
 // regardless of what path this page is served from (GitHub Pages serves
@@ -24,13 +24,11 @@ export class VehicleDetector {
   }
 
   /**
-   * @param {HTMLVideoElement|HTMLCanvasElement} source - current frame to detect on.
-   * @param {CanvasRenderingContext2D} scratchCtx - an offscreen 640x640 canvas context, reused across calls.
-   * @param {number} frameWidth - the source's natural display width.
-   * @param {number} frameHeight - the source's natural display height.
-   * @param {object} options - confThreshold, iouThreshold, passed to postprocess().
+   * Preprocesses a frame and runs inference, returning the raw model
+   * output and anchor count — shared by detect() and detectTiered() below,
+   * since everything up to postprocessing is identical between them.
    */
-  async detect(source, scratchCtx, frameWidth, frameHeight, options = {}) {
+  async _runInference(source, scratchCtx) {
     if (!this.session) throw new Error("Model not loaded; call load() first.");
 
     // Resize (not letterboxed, see postprocess.js) into the 640x640 scratch
@@ -53,8 +51,32 @@ export class VehicleDetector {
     const outputs = await this.session.run({ [inputName]: tensor });
     const outputName = this.session.outputNames[0];
     const output = outputs[outputName];
-    const numAnchors = output.dims[2];
+    return { data: output.data, numAnchors: output.dims[2] };
+  }
 
-    return postprocess(output.data, numAnchors, frameWidth, frameHeight, options);
+  /**
+   * @param {HTMLVideoElement|HTMLCanvasElement} source - current frame to detect on.
+   * @param {CanvasRenderingContext2D} scratchCtx - an offscreen 640x640 canvas context, reused across calls.
+   * @param {number} frameWidth - the source's natural display width.
+   * @param {number} frameHeight - the source's natural display height.
+   * @param {object} options - confThreshold, iouThreshold, passed to postprocess().
+   */
+  async detect(source, scratchCtx, frameWidth, frameHeight, options = {}) {
+    const { data, numAnchors } = await this._runInference(source, scratchCtx);
+    return postprocess(data, numAnchors, frameWidth, frameHeight, options);
+  }
+
+  /**
+   * Same as detect(), but also returns a second, lower-confidence tier for
+   * tracker.js's ByteTrack-style second matching stage — see
+   * postprocessTiered() and tracker.js for why. Runs inference exactly
+   * once; only the postprocessing differs from detect().
+   * @param {object} options - confThreshold, lowConfThreshold, iouThreshold,
+   *   passed to postprocessTiered().
+   * @returns {Promise<{detections: Array, lowConfidenceDetections: Array}>}
+   */
+  async detectTiered(source, scratchCtx, frameWidth, frameHeight, options = {}) {
+    const { data, numAnchors } = await this._runInference(source, scratchCtx);
+    return postprocessTiered(data, numAnchors, frameWidth, frameHeight, options);
   }
 }

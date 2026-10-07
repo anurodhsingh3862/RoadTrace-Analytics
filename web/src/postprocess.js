@@ -110,3 +110,27 @@ export function postprocess(data, numAnchors, frameWidth, frameHeight, options =
   const kept = nonMaxSuppression(decoded, iouThreshold);
   return scaleDetections(kept, frameWidth, frameHeight);
 }
+
+/**
+ * Same pipeline as postprocess(), but also returns a second, lower-
+ * confidence tier for tracker.js's ByteTrack-style second matching stage —
+ * see that module's header for why. Decodes once at the lower threshold
+ * (a superset of what confThreshold alone would decode) and runs NMS over
+ * the combined pool before splitting by score, rather than decoding and
+ * suppressing each tier separately: that way a box right at the boundary
+ * between tiers only ever gets suppressed/kept once, consistently, instead
+ * of two independent NMS passes possibly disagreeing with each other.
+ * @returns {{detections: Array, lowConfidenceDetections: Array}} `detections`
+ *   is identical to what postprocess() would return for the same options.
+ */
+export function postprocessTiered(data, numAnchors, frameWidth, frameHeight, options = {}) {
+  const { confThreshold = 0.3, lowConfThreshold = 0.1, iouThreshold = 0.45 } = options;
+  const effectiveLowThreshold = Math.min(lowConfThreshold, confThreshold);
+  const decoded = decodeDetections(data, numAnchors, effectiveLowThreshold);
+  const kept = nonMaxSuppression(decoded, iouThreshold);
+  const scaled = scaleDetections(kept, frameWidth, frameHeight);
+  return {
+    detections: scaled.filter((d) => d.score >= confThreshold),
+    lowConfidenceDetections: scaled.filter((d) => d.score < confThreshold),
+  };
+}
