@@ -540,6 +540,46 @@ than as one large change.
     second person drive past at a known, steady speed (read off their
     own speedometer) and compare it to what the HUD reports.
 
+- [x] `web/src/calibration.js` — **automatic monocular perspective
+  calibration from lane geometry**, the real alternative promised above
+  (as opposed to another heuristic). A few seconds after the camera (or
+  an uploaded clip) starts, a downscaled frame is run through a small
+  Sobel edge filter and a custom Hough-style vote (parameterized as
+  `x = m*y + b` to stay stable near-vertical, unlike the usual `y = mx+b`)
+  to find two converging lane-boundary lines. Their intersection is the
+  vanishing point; implausible pairs (lines that don't actually converge
+  above the scanned road region) are rejected rather than calibrated
+  against. Given the two line equations, the pixel gap between them at
+  any image row IS that row's real lane width in pixels — dividing an
+  assumed standard lane width (3.7m) by it gives a real, perspective-
+  correct meters-per-pixel scale at that row, with no further
+  assumptions. `speed.js`'s `AutoSpeedEstimator` takes this as an
+  optional `metersPerPixelOverride` and uses it instead of the per-class
+  vehicle-size guess whenever it's available, falling back to that
+  heuristic automatically whenever no confident lane geometry is found
+  (unmarked roads, occluded markings, poor lighting) — nothing about the
+  existing behavior changes for a session where calibration doesn't
+  succeed. Retries on a 3-second timer, up to 6 attempts, then gives up
+  quietly. A HUD chip on the camera view ("Calibrated from lane
+  geometry" vs. "Estimated from vehicle size") shows which mode is
+  active, in all 4 supported languages.
+  **Honest scope note, stated in the module and worth repeating here**:
+  this is mathematically rigorous for motion ACROSS the lane direction
+  (the dominant case for broadside traffic — also the case the
+  orientation-aware sizing fix above already favors), not for motion
+  straight toward/away from the camera (depth). A fully depth-accurate
+  scale would need one more independent assumption this method
+  deliberately doesn't make — camera height or focal length/field of
+  view, neither of which is recoverable from lane geometry alone on an
+  arbitrary handheld or dashboard-mounted phone. The scale this module
+  derives is applied to the full 2D pixel displacement as the best
+  available approximation: exact for lateral motion, approximate for
+  depth motion — same trade-off every genuinely zero-input monocular
+  method makes, just now backed by real scene geometry instead of a
+  population-average vehicle size. 9 new tests (`calibration.js`'s own
+  7 plus 2 covering the `metersPerPixelOverride` wiring in
+  `speed.test.js`), 91/91 passing.
+
 ## Planned, in order
 1. **A road-level crash dataset** — the actual remaining prerequisite for
    `risk_context.py` to become a real risk model instead of "measured
