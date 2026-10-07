@@ -130,6 +130,20 @@ function formatVehicleSpeed(mph) {
   return units.speed === "kmh" ? `${Math.round(mph * MPH_TO_KMH)} km/h` : `${Math.round(mph)} mph`;
 }
 
+// Expresses a vehicle's estimated speed relative to the posted limit for
+// the road (hudSpeedLimitKmh, set once per session once geolocation
+// resolves — see fetchHudSpeedLimit below). Returns null whenever there's
+// nothing to compare against yet, so callers can simply omit the
+// comparison rather than showing a misleading 0%.
+function speedVsLimit(vehicleMph) {
+  if (vehicleMph == null || hudSpeedLimitKmh == null || !(hudSpeedLimitKmh > 0)) return null;
+  const limitMph = hudSpeedLimitKmh / MPH_TO_KMH;
+  const pct = Math.round(Math.abs(((vehicleMph - limitMph) / limitMph) * 100));
+  if (vehicleMph > limitMph) return { text: t("hud_pct_above_limit", { pct }), className: "over" };
+  if (vehicleMph < limitMph) return { text: t("hud_pct_below_limit", { pct }), className: "under" };
+  return { text: t("hud_at_speed_limit"), className: "neutral" };
+}
+
 function setStatus(text) {
   statusEl.textContent = text;
 }
@@ -305,7 +319,15 @@ function renderVehicleList(tracked, speedByTrackId = new Map()) {
     const speedEl = document.createElement("span");
     speedEl.className = "hud-vehicle-speed";
     const speedSampleCount = speedCountByClass.get(className);
-    speedEl.textContent = speedSampleCount ? formatVehicleSpeed(speedSumByClass.get(className) / speedSampleCount) : "—";
+    const classAvgMph = speedSampleCount ? speedSumByClass.get(className) / speedSampleCount : null;
+    speedEl.textContent = classAvgMph != null ? formatVehicleSpeed(classAvgMph) : "—";
+    const comparison = speedVsLimit(classAvgMph);
+    if (comparison) {
+      const comparisonEl = document.createElement("span");
+      comparisonEl.className = `speed-vs-limit ${comparison.className}`;
+      comparisonEl.textContent = comparison.text;
+      speedEl.appendChild(comparisonEl);
+    }
     const countEl = document.createElement("span");
     countEl.className = "hud-vehicle-count";
     countEl.textContent = count;
@@ -352,7 +374,16 @@ function renderAvgSpeedStat(speedByTrackId) {
     return;
   }
   const avgMph = speeds.reduce((sum, s) => sum + s, 0) / speeds.length;
-  if (speedValueEl) speedValueEl.textContent = formatVehicleSpeed(avgMph);
+  if (speedValueEl) {
+    speedValueEl.textContent = formatVehicleSpeed(avgMph);
+    const comparison = speedVsLimit(avgMph);
+    if (comparison) {
+      const comparisonEl = document.createElement("span");
+      comparisonEl.className = `speed-vs-limit ${comparison.className}`;
+      comparisonEl.textContent = comparison.text;
+      speedValueEl.appendChild(comparisonEl);
+    }
+  }
   if (speedBarEl) speedBarEl.style.width = `${Math.min(100, (avgMph / SPEED_BAR_CEILING_MPH) * 100)}%`;
 }
 renderAvgSpeedStat(new Map());
@@ -367,18 +398,18 @@ renderAvgSpeedStat(new Map());
 // camera actually starts (see the cameraButton handler above) — not on
 // page load itself, so the browser's location prompt only appears once
 // there's a real reason for it.
-const speedLimitValueEl = document.getElementById("stat-speedlimit-value");
+// Two places show this value: the "Live stats" card below the video (for
+// anyone who scrolls down), and a chip overlaid directly on the camera
+// view (".speedlimit-value") so it's visible at a glance while filming,
+// without scrolling — both are kept in sync from the same state here.
+const speedLimitValueEls = document.querySelectorAll("#stat-speedlimit-value, .speedlimit-value");
 let hudSpeedLimitKmh = null;
 let hudSpeedLimitNote = null; // shown instead of a value when there isn't one (denied/unavailable/no data)
 let speedLimitRequested = false;
 
 function renderHudSpeedLimit() {
-  if (!speedLimitValueEl) return;
-  if (hudSpeedLimitKmh != null) {
-    speedLimitValueEl.textContent = formatSpeed(hudSpeedLimitKmh);
-  } else {
-    speedLimitValueEl.textContent = hudSpeedLimitNote || "—";
-  }
+  const text = hudSpeedLimitKmh != null ? formatSpeed(hudSpeedLimitKmh) : hudSpeedLimitNote || "—";
+  for (const el of speedLimitValueEls) el.textContent = text;
 }
 renderHudSpeedLimit();
 
