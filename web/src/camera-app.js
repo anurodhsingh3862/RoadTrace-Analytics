@@ -50,6 +50,7 @@ import { IouTracker } from "./tracker.js";
 import { AutoSpeedEstimator } from "./speed.js";
 import { ShakeDetector } from "./motion.js";
 import { detectLaneGeometry, PerspectiveCalibration } from "./calibration.js";
+import { isWithinScoringRoi } from "./roi.js";
 import { MODEL_INPUT_SIZE } from "./postprocess.js";
 import { fetchRoadSafetyContext, getNearbySpeedLimit, cToF, kmhToMph, mmToIn, metersToMiles, compassDirection, aqiCategory } from "./context.js";
 import {
@@ -271,6 +272,12 @@ fileInput.addEventListener("change", () => {
   video.src = URL.createObjectURL(file);
   video.play();
   setStatus(t("status_playing_file"));
+  // A new source has its own independent media clock (an uploaded file
+  // starts its timestamps back at 0, same as a fresh camera stream would),
+  // so the elapsed-time baseline used for speed math needs to restart too —
+  // otherwise switching sources mid-session could make the next frame's
+  // elapsed time appear to jump backwards.
+  startTime = null;
   // Lane geometry is just as valid to calibrate from in an uploaded clip as
   // live camera footage, so the same automatic attempt applies here too.
   startCalibrationSchedule();
@@ -308,6 +315,7 @@ cameraButton.addEventListener("click", async () => {
     video.srcObject = stream;
     await video.play();
     setStatus(t("status_camera_on"));
+    startTime = null; // fresh media clock for this stream — see the fileInput handler for why
     // Only for the live camera, not an uploaded file: the posted speed
     // limit is only meaningful for wherever the phone actually is right
     // now, which is only true when it's filming live. A video uploaded
@@ -553,13 +561,45 @@ function fetchHudSpeedLimit() {
   );
 }
 
-async function frameLoop() {
-  if (!running || video.paused || video.ended) {
-    requestAnimationFrame(frameLoop);
+// Ties each detection pass to an actual decoded video frame rather than the
+// display's refresh rate: requestAnimationFrame fires on every repaint even
+// when the video hasn't produced a new frame yet (a slower camera feed, a
+// throttled background tab, or simply a display refreshing faster than the
+// video decodes), which wastes a full detector pass re-processing the same
+// pixels and can skew timestampS's effective sampling interval. Falls back
+// to the previous requestAnimationFrame-driven loop on browsers that don't
+// support it yet (rVFC's browser support is good but not universal) — the
+// fallback path reproduces the exact old behavior, so nothing regresses.
+const supportsVideoFrameCallback = typeof video.requestVideoFrameCallback === "function";
+
+function scheduleNextFrame() {
+  if (video.paused || video.ended) {
+    // Nothing to process yet — requestVideoFrameCallback never fires on a
+    // paused/ended video, so poll cheaply with rAF until there's a frame to
+    // wait on again (covers the gap between page load and the user actually
+    // starting the camera or picking a file).
+    requestAnimationFrame(scheduleNextFrame);
     return;
   }
-  if (startTime === null) startTime = performance.now();
-  const timestampS = (performance.now() - startTime) / 1000;
+  if (supportsVideoFrameCallback) {
+    video.requestVideoFrameCallback((_now, metadata) => frameLoop(metadata.mediaTime));
+  } else {
+    requestAnimationFrame(() => frameLoop(performance.now() / 1000));
+  }
+}
+
+async function frameLoop(mediaTimeS) {
+  if (!running || video.paused || video.ended) {
+    scheduleNextFrame();
+    return;
+  }
+  // mediaTimeS is the video element's own presentation clock (seconds,
+  // zeroed at the start of this source — see the startTime resets in the
+  // fileInput/cameraButton handlers above) rather than wall-clock time, so
+  // it tracks actual frame delivery instead of requestAnimationFrame's
+  // display-refresh cadence.
+  if (startTime === null) startTime = mediaTimeS;
+  const timestampS = mediaTimeS - startTime;
 
   const raw = await detector.detect(video, scratchCtx, video.videoWidth, video.videoHeight, {
     confThreshold: 0.3,
@@ -583,6 +623,13 @@ async function frameLoop() {
       const boxHeightPx = det.y2 - det.y1;
       const roadX = (det.x1 + det.x2) / 2;
       const roadY = det.y2;
+      // Skip this frame's sample (without discarding the vehicle's existing
+      // history, same treatment as a camera-shake frame above) whenever its
+      // road point falls in the outer edge margin — see roi.js for why:
+      // that's where a phone lens's radial distortion is worst, and a
+      // vehicle only passes through there briefly as it enters/exits frame
+      // anyway, so this costs little coverage for a real accuracy gain.
+      if (!isWithinScoringRoi(roadX, video.videoWidth)) continue;
       // boxHeightPx lets the estimator tell a broadside vehicle (wide, short
       // box -> scale by vehicle length) from a head-on/rear-on one (taller,
       // squarer box -> scale by vehicle width) — see speed.js for why that
@@ -614,7 +661,7 @@ async function frameLoop() {
   renderAvgSpeedStat(speedByTrackId);
   lastTracked = tracked;
   lastSpeedByTrackId = speedByTrackId;
-  requestAnimationFrame(frameLoop);
+  scheduleNextFrame();
 }
 
 async function main() {
@@ -622,7 +669,7 @@ async function main() {
   await detector.load("models/yolo11n.onnx");
   setStatus(t("status_ready"));
   running = true;
-  requestAnimationFrame(frameLoop);
+  scheduleNextFrame();
 }
 
 main().catch(() => setStatus(t("status_model_error")));
