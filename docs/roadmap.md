@@ -516,6 +516,30 @@ than as one large change.
     limitations above still apply — but this removes what was the single
     largest source of error in the numbers reported from real testing.
 
+  - **Moved the posted speed limit and the mph/km-h toggle onto the live
+    camera view itself**, instead of only in the "Live stats" card below
+    the video — field testing showed both were easy to miss without
+    scrolling down while actively filming. Both now also appear as a
+    chip directly over the camera feed, next to the live clock, kept in
+    sync with the card version from the same underlying state.
+  - **Added a speed-vs-posted-limit comparison**, shown next to both the
+    per-vehicle-class speed in the vehicle list and the overall average
+    speed stat: "N% below the speed limit" in green, "N% above the speed
+    limit" in red, or "At the speed limit" when they match. Computed only
+    once a posted limit has actually resolved for the session (never a
+    guess against a placeholder).
+  - **On "can we use local aerial sensors / anything else for more
+    accuracy"**: no — there's no zero-cost way to add an external speed
+    sensor (radar, LIDAR, drone/aerial imagery) without reintroducing
+    real cost or hardware dependencies, which would defeat the point of
+    this project. The only zero-cost path to materially better accuracy
+    is geometric: a real camera calibration (perspective/homography from
+    known road geometry) rather than the current per-class assumed-size
+    heuristic — tracked as a planned item below. The most useful thing a
+    tester can do right now is an informal ground-truth check: have a
+    second person drive past at a known, steady speed (read off their
+    own speedometer) and compare it to what the HUD reports.
+
 ## Planned, in order
 1. **A road-level crash dataset** — the actual remaining prerequisite for
    `risk_context.py` to become a real risk model instead of "measured
