@@ -29,10 +29,27 @@
 // vehicles) is shown, in keeping with the project's no-identity-data
 // principle — speeds are reported per vehicle class, not per tracked
 // individual.
+//
+// On top of the vehicle-size heuristic, this page also attempts AUTOMATIC
+// GEOMETRIC CALIBRATION from the road's own lane markings (calibration.js):
+// a few seconds after the camera (or an uploaded clip) starts, it looks for
+// two converging lane-boundary lines and, if found, derives a real,
+// scene-specific pixel-to-meter scale from them and an assumed standard
+// lane width — no tapping, no manual input, same as the size heuristic it
+// can override. This is honestly scoped: it's a rigorous scale for motion
+// ACROSS the lane (the dominant case for broadside traffic) but only an
+// approximation for motion straight toward/away from the camera, since that
+// would need an additional camera-height or focal-length assumption lane
+// geometry alone can't supply. See calibration.js for the full method and
+// scope note. When no confident lane geometry can be found (unmarked road,
+// occluded markings, poor lighting), this silently falls back to the
+// per-class size heuristic — the HUD's calibration chip shows which mode is
+// active.
 import { VehicleDetector } from "./detector.js";
 import { IouTracker } from "./tracker.js";
 import { AutoSpeedEstimator } from "./speed.js";
 import { ShakeDetector } from "./motion.js";
+import { detectLaneGeometry, PerspectiveCalibration } from "./calibration.js";
 import { MODEL_INPUT_SIZE } from "./postprocess.js";
 import { fetchRoadSafetyContext, getNearbySpeedLimit, cToF, kmhToMph, mmToIn, metersToMiles, compassDirection, aqiCategory } from "./context.js";
 import {
@@ -111,6 +128,17 @@ scratch.width = MODEL_INPUT_SIZE;
 scratch.height = MODEL_INPUT_SIZE;
 const scratchCtx = scratch.getContext("2d", { willReadFrequently: true });
 
+// A separate canvas for lane-geometry calibration (see calibration.js):
+// deliberately NOT the detector's `scratch` canvas above, which is forced
+// to a square MODEL_INPUT_SIZE for the ML model and would distort the
+// road's real aspect ratio, throwing off the line-slope math. This one
+// keeps the video's native aspect ratio at a modest fixed resolution —
+// enough detail for a Sobel+Hough pass on lane markings, small enough to
+// stay fast on a mid-range phone.
+const CALIBRATION_FRAME_HEIGHT = 240;
+const calibrationCanvas = document.createElement("canvas");
+const calibrationCtx = calibrationCanvas.getContext("2d", { willReadFrequently: true });
+
 const detector = new VehicleDetector();
 const tracker = new IouTracker();
 const speedEstimator = new AutoSpeedEstimator();
@@ -118,6 +146,83 @@ const shakeDetector = new ShakeDetector();
 const stabilityNoticeEl = document.getElementById("stability-notice");
 let startTime = null;
 let running = false;
+
+// --- Automatic perspective calibration from lane geometry ---------------
+// Distinct from the per-class vehicle-size heuristic in speed.js: when the
+// camera can see lane markings, this derives an actual, scene-specific
+// pixel-to-meter scale (see calibration.js for the full method and its
+// honestly-documented scope — lateral motion only). Falls back silently to
+// the heuristic whenever no confident lane geometry is found.
+let perspectiveCalibration = null;
+let calibrationAttempts = 0;
+const MAX_CALIBRATION_ATTEMPTS = 6; // a handful of tries over the first ~20s, then give up quietly
+const calibrationChipEl = document.getElementById("hud-calibration-chip");
+
+function renderCalibrationStatus() {
+  if (!calibrationChipEl) return;
+  calibrationChipEl.textContent = perspectiveCalibration
+    ? t("hud_calibration_geometry")
+    : t("hud_calibration_heuristic");
+}
+renderCalibrationStatus();
+
+/**
+ * Tries once to recover lane geometry from the current video frame and, on
+ * success, builds a PerspectiveCalibration from it. Safe to call repeatedly
+ * — it no-ops once a calibration is already in hand or attempts run out, so
+ * callers can just keep retrying on a timer without extra bookkeeping.
+ */
+function attemptCalibration() {
+  if (perspectiveCalibration) return;
+  if (calibrationAttempts >= MAX_CALIBRATION_ATTEMPTS) return;
+  if (!video.videoWidth || !video.videoHeight) return;
+  calibrationAttempts++;
+  const scale = CALIBRATION_FRAME_HEIGHT / video.videoHeight;
+  const w = Math.round(video.videoWidth * scale);
+  const h = CALIBRATION_FRAME_HEIGHT;
+  if (calibrationCanvas.width !== w || calibrationCanvas.height !== h) {
+    calibrationCanvas.width = w;
+    calibrationCanvas.height = h;
+  }
+  calibrationCtx.drawImage(video, 0, 0, w, h);
+  let imageData;
+  try {
+    imageData = calibrationCtx.getImageData(0, 0, w, h);
+  } catch {
+    return; // e.g. a tainted canvas from a cross-origin file source
+  }
+  const geometry = detectLaneGeometry(imageData.data, w, h);
+  if (!geometry) return;
+  // The detected lines are in the downscaled calibration frame's pixel
+  // space; metersPerPixelAt is applied to full-resolution detection boxes
+  // in frameLoop, so the lines are scaled back up to video pixel space here
+  // rather than scaling every detection down on every frame.
+  const invScale = 1 / scale;
+  const scaled = (line) => ({ m: line.m * invScale, b: line.b * invScale });
+  perspectiveCalibration = new PerspectiveCalibration(scaled(geometry.leftLine), scaled(geometry.rightLine));
+  renderCalibrationStatus();
+}
+
+let calibrationTimer = null;
+
+/** Starts (or restarts) the bounded calibration-attempt schedule for a
+ * fresh camera session. Spaced out rather than attempted every frame: lane
+ * detection is comparatively expensive, and the best window to try is once
+ * the camera has steadied after startup, not during the initial jostle of
+ * picking up the phone and aiming it. */
+function startCalibrationSchedule() {
+  perspectiveCalibration = null;
+  calibrationAttempts = 0;
+  renderCalibrationStatus();
+  if (calibrationTimer) clearInterval(calibrationTimer);
+  calibrationTimer = setInterval(() => {
+    attemptCalibration();
+    if (perspectiveCalibration || calibrationAttempts >= MAX_CALIBRATION_ATTEMPTS) {
+      clearInterval(calibrationTimer);
+      calibrationTimer = null;
+    }
+  }, 3000);
+}
 
 // Shared unit preference for every speed/temperature shown on this page
 // (vehicle speeds here, and the road-safety weather/speed-limit card
@@ -166,6 +271,9 @@ fileInput.addEventListener("change", () => {
   video.src = URL.createObjectURL(file);
   video.play();
   setStatus(t("status_playing_file"));
+  // Lane geometry is just as valid to calibrate from in an uploaded clip as
+  // live camera footage, so the same automatic attempt applies here too.
+  startCalibrationSchedule();
 });
 
 function handleDeviceMotion(event) {
@@ -207,6 +315,7 @@ cameraButton.addEventListener("click", async () => {
     // nothing to do with where it was recorded.
     fetchHudSpeedLimit();
     startMotionGuard();
+    startCalibrationSchedule();
   } catch (err) {
     setStatus(t("status_camera_error"));
   }
@@ -478,8 +587,21 @@ async function frameLoop() {
       // box -> scale by vehicle length) from a head-on/rear-on one (taller,
       // squarer box -> scale by vehicle width) — see speed.js for why that
       // distinction was previously the single biggest source of
-      // underestimated speeds.
-      const speed = speedEstimator.update(det.trackId, det.className, roadX, roadY, boxWidthPx, timestampS, boxHeightPx);
+      // underestimated speeds. When lane geometry has been successfully
+      // calibrated (see attemptCalibration above), its scene-derived scale
+      // at this exact road row takes priority over the assumed-size
+      // heuristic entirely — see speed.js's metersPerPixelOverride.
+      const metersPerPixelOverride = perspectiveCalibration ? perspectiveCalibration.metersPerPixelAt(roadY) : null;
+      const speed = speedEstimator.update(
+        det.trackId,
+        det.className,
+        roadX,
+        roadY,
+        boxWidthPx,
+        timestampS,
+        boxHeightPx,
+        metersPerPixelOverride
+      );
       if (speed != null) speedByTrackId.set(det.trackId, speed);
     }
   }

@@ -128,6 +128,27 @@ test("AutoSpeedEstimator scales by vehicle width for a head-on/rear-on (tall/squ
   assert.ok(Math.abs(speed - expectedMph) < 0.01, `expected width-scaled speed ~${expectedMph}, got ${speed}`);
 });
 
+test("AutoSpeedEstimator uses a metersPerPixelOverride when provided, ignoring the vehicle-size heuristic", () => {
+  const estimator = new AutoSpeedEstimator(4);
+  const widthPx = 100; // would normally imply metersPerPixel = 1.8/100 = 0.018 via the width heuristic
+  const overrideMetersPerPixel = 0.05; // a very different, scene-derived scale
+  estimator.update(1, "car", 0, 0, widthPx, 0.0, null, overrideMetersPerPixel);
+  const speed = estimator.update(1, "car", 100, 0, widthPx, 1.0, null, overrideMetersPerPixel);
+  const expectedMph = 100 * overrideMetersPerPixel * MPH_PER_MPS;
+  assert.ok(Math.abs(speed - expectedMph) < 0.01, `expected override-scaled speed ~${expectedMph}, got ${speed}`);
+  const heuristicMph = 100 * (AVG_VEHICLE_WIDTH_M.car / widthPx) * MPH_PER_MPS;
+  assert.notEqual(Math.round(speed), Math.round(heuristicMph), "expected the override to actually change the result");
+});
+
+test("AutoSpeedEstimator falls back to the heuristic for a pair where only one point has an override", () => {
+  const estimator = new AutoSpeedEstimator(4);
+  const widthPx = 100;
+  estimator.update(1, "car", 0, 0, widthPx, 0.0, null, 0.05); // has an override
+  const speed = estimator.update(1, "car", 1000, 0, widthPx, 1.0); // no override this frame
+  const expectedMph = 1000 * (AVG_VEHICLE_WIDTH_M.car / widthPx) * MPH_PER_MPS;
+  assert.ok(Math.abs(speed - expectedMph) < 0.01, `expected the width heuristic since the pair isn't fully calibrated, got ${speed}`);
+});
+
 test("AutoSpeedEstimator prune drops tracks not updated recently", () => {
   const estimator = new AutoSpeedEstimator(4);
   estimator.update(1, "car", 0, 0, 100, 0.0);

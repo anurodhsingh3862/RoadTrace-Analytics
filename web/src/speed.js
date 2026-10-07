@@ -185,14 +185,24 @@ export class AutoSpeedEstimator {
    *   vehicle width), matching the original behavior. Pass it to get the
    *   orientation-aware broadside/length handling described above
    *   AVG_VEHICLE_WIDTH_M.
+   * @param {number|null} [metersPerPixelOverride] - a scene-derived scale
+   *   (e.g. from calibration.js's PerspectiveCalibration, built from
+   *   detected lane geometry) for this specific road row, to use INSTEAD
+   *   of the assumed-vehicle-size estimate for this sample. This is a
+   *   strictly better scale when available — it reflects the actual
+   *   camera's perspective at that point in the frame, not a population
+   *   average vehicle size — so it takes priority whenever both points in
+   *   a pair have one. Falls back to the width/length heuristic otherwise,
+   *   so a session with no detectable lane markings behaves exactly as
+   *   before.
    * @returns {number|null} speed in mph, or null if not enough history yet
    */
-  update(trackId, className, x, y, widthPx, timestampS, heightPx = null) {
+  update(trackId, className, x, y, widthPx, timestampS, heightPx = null, metersPerPixelOverride = null) {
     if (!(widthPx > 0)) return null;
     if (!this.history.has(trackId)) this.history.set(trackId, []);
     const points = this.history.get(trackId);
     const realSizeM = assumedRealSizeM(className, widthPx, heightPx);
-    points.push({ x, y, t: timestampS, widthPx, realSizeM });
+    points.push({ x, y, t: timestampS, widthPx, realSizeM, metersPerPixelOverride });
     while (points.length > this.windowSize) points.shift();
     if (points.length < 2) return null;
 
@@ -200,10 +210,16 @@ export class AutoSpeedEstimator {
     for (let i = 1; i < points.length; i++) {
       const dt = points[i].t - points[i - 1].t;
       if (dt <= 0) continue;
-      const avgWidthPx = (points[i].widthPx + points[i - 1].widthPx) / 2;
-      if (!(avgWidthPx > 0)) continue;
-      const avgRealSizeM = (points[i].realSizeM + points[i - 1].realSizeM) / 2;
-      const metersPerPixel = avgRealSizeM / avgWidthPx;
+      const a = points[i], b = points[i - 1];
+      let metersPerPixel;
+      if (a.metersPerPixelOverride != null && b.metersPerPixelOverride != null) {
+        metersPerPixel = (a.metersPerPixelOverride + b.metersPerPixelOverride) / 2;
+      } else {
+        const avgWidthPx = (a.widthPx + b.widthPx) / 2;
+        if (!(avgWidthPx > 0)) continue;
+        const avgRealSizeM = (a.realSizeM + b.realSizeM) / 2;
+        metersPerPixel = avgRealSizeM / avgWidthPx;
+      }
       const dPixels = Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
       speeds.push(((dPixels * metersPerPixel) / dt) * MPH_PER_MPS);
     }
