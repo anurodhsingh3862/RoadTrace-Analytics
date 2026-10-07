@@ -593,6 +593,37 @@ than as one large change.
     tests still pass unchanged; this was a pure performance fix, not a
     behavior change.
 
+- [x] Two small, independent accuracy/robustness fixes from a second
+  accuracy-focused review pass:
+  - **`web/src/camera-app.js` now drives detection off
+    `HTMLVideoElement.requestVideoFrameCallback()`** (with an automatic
+    `requestAnimationFrame` fallback on browsers that don't support it yet)
+    instead of plain `requestAnimationFrame`. rAF fires on every display
+    repaint even when the video hasn't actually produced a new frame —
+    a slower camera feed, a throttled tab, or a display refreshing faster
+    than the source decodes all mean wasted detector passes re-processing
+    the same pixels. The timestamp fed to the speed estimator is now the
+    video element's own presentation clock (`metadata.mediaTime`) rather
+    than wall-clock time, so it tracks actual frame delivery. Also fixed a
+    latent (minor, never previously triggered since the page didn't
+    support switching sources mid-timer-baseline) bug this change would
+    have made worse: switching from the camera to an uploaded file (or
+    back) now resets the elapsed-time baseline, since each source has its
+    own independent media clock starting at 0.
+  - **`web/src/roi.js` (new)**: excludes the outer ~15% of the frame
+    (each side) from speed *scoring* — vehicles there are still detected
+    and boxed, just not given a speed estimate for that frame. This is the
+    one well-understood, assumption-free fix for lens distortion: a phone
+    camera's radial (barrel/pincushion) distortion is worst at the frame
+    edges and least near the center, and a vehicle spends very little of
+    its time on screen in that margin anyway. Deliberately not the
+    alternative considered (asking the user to pick "standard" vs.
+    "ultra-wide" lens and applying a radial-undistortion coefficient) —
+    that would reintroduce exactly the kind of manual setup step this page
+    removed once already (see the top-of-file note in `camera-app.js`
+    about why tap-to-calibrate was taken out).
+  - 6 new tests (`roi.test.js`), 97/97 passing.
+
 ## Planned, in order
 1. **A road-level crash dataset** — the actual remaining prerequisite for
    `risk_context.py` to become a real risk model instead of "measured
