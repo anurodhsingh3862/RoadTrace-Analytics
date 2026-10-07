@@ -51,6 +51,7 @@ import { AutoSpeedEstimator } from "./speed.js";
 import { ShakeDetector } from "./motion.js";
 import { detectLaneGeometry, PerspectiveCalibration } from "./calibration.js";
 import { isWithinScoringRoi } from "./roi.js";
+import { classifyTilt } from "./tilt.js";
 import { MODEL_INPUT_SIZE } from "./postprocess.js";
 import { fetchRoadSafetyContext, getNearbySpeedLimit, cToF, kmhToMph, mmToIn, metersToMiles, compassDirection, aqiCategory } from "./context.js";
 import {
@@ -308,6 +309,61 @@ function startMotionGuard() {
   }
 }
 
+// --- Camera-tilt guidance (see tilt.js for the method and its honestly
+// stated scope: portrait orientation only, pitch reported as a magnitude
+// rather than a guessed direction) --------------------------------------
+const tiltChipEl = document.getElementById("hud-tilt-chip");
+let latestTilt = { status: "unknown", rollDeg: null, pitchOffsetDeg: null };
+
+function getScreenAngleDeg() {
+  // screen.orientation.angle is the modern API; window.orientation is the
+  // older (still-needed-on-some-iOS) fallback. Defaults to 0 (portrait) when
+  // neither is available, which is the common case on a desktop browser
+  // testing with an uploaded file rather than a real device sensor.
+  if (typeof screen !== "undefined" && screen.orientation && typeof screen.orientation.angle === "number") {
+    return screen.orientation.angle;
+  }
+  if (typeof window !== "undefined" && typeof window.orientation === "number") return window.orientation;
+  return 0;
+}
+
+function renderTiltStatus() {
+  if (!tiltChipEl) return;
+  if (latestTilt.status === "unknown") {
+    tiltChipEl.hidden = true;
+    return;
+  }
+  tiltChipEl.hidden = false;
+  tiltChipEl.classList.toggle("tilt-warning", latestTilt.status === "tilted");
+  tiltChipEl.textContent =
+    latestTilt.status === "level"
+      ? t("hud_tilt_level")
+      : t("hud_tilt_warning", { deg: Math.round(latestTilt.pitchOffsetDeg) });
+}
+
+function handleDeviceOrientation(event) {
+  latestTilt = classifyTilt(event.beta, event.gamma, getScreenAngleDeg());
+  renderTiltStatus();
+}
+
+// Same permission pattern as startMotionGuard above — DeviceOrientationEvent
+// needs its own, separate iOS permission prompt from DeviceMotionEvent, and
+// both must fire in direct response to the same user gesture (the camera
+// button click). Fails open exactly like the motion guard: no sensor, or
+// permission denied, just means tilt guidance never appears rather than
+// breaking anything.
+function startTiltGuard() {
+  if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
+    DeviceOrientationEvent.requestPermission()
+      .then((state) => {
+        if (state === "granted") window.addEventListener("deviceorientation", handleDeviceOrientation);
+      })
+      .catch(() => {});
+  } else if (typeof window !== "undefined" && "DeviceOrientationEvent" in window) {
+    window.addEventListener("deviceorientation", handleDeviceOrientation);
+  }
+}
+
 cameraButton.addEventListener("click", async () => {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
@@ -323,6 +379,7 @@ cameraButton.addEventListener("click", async () => {
     // nothing to do with where it was recorded.
     fetchHudSpeedLimit();
     startMotionGuard();
+    startTiltGuard();
     startCalibrationSchedule();
   } catch (err) {
     setStatus(t("status_camera_error"));
@@ -331,10 +388,48 @@ cameraButton.addEventListener("click", async () => {
 
 // --- Drawing and the detect/track loop ---------------------------------
 
+// Draws a virtual-horizon line through the center of the frame, rotated by
+// the phone's current left-right bank (roll) so it stays visually level
+// with the real world even as the device tilts underneath it — the same
+// idea as a bubble/spirit-level or an aircraft attitude indicator. Rotating
+// by the NEGATIVE of the device's roll is what gives this the right sense:
+// as the phone banks right, the drawn line rotates to appear to lean left
+// relative to the screen, exactly like a real horizon would. Only drawn
+// when a roll reading is actually available (see tilt.js for when that's
+// not the case) — silently skipped otherwise rather than drawing a
+// misleading flat line.
+function drawTiltHorizon(ctx, width, height) {
+  if (latestTilt.rollDeg == null) return;
+  const cx = width / 2;
+  const cy = height / 2;
+  const halfLen = Math.min(width, height) * 0.22;
+  const angleRad = (-latestTilt.rollDeg * Math.PI) / 180;
+  const dx = Math.cos(angleRad) * halfLen;
+  const dy = Math.sin(angleRad) * halfLen;
+  ctx.save();
+  ctx.strokeStyle = latestTilt.status === "level" ? "#2fae5aee" : "#e5484dee";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(cx - dx, cy - dy);
+  ctx.lineTo(cx + dx, cy + dy);
+  ctx.stroke();
+  // A short fixed crosshair tick at center (does NOT rotate) gives a
+  // reference for how far the rotating line has departed from level.
+  ctx.strokeStyle = "#f3f1eecc";
+  ctx.beginPath();
+  ctx.moveTo(cx - 6, cy);
+  ctx.lineTo(cx + 6, cy);
+  ctx.moveTo(cx, cy - 6);
+  ctx.lineTo(cx, cy + 6);
+  ctx.stroke();
+  ctx.restore();
+}
+
 function drawDetections(detections, speedByTrackId = new Map()) {
   overlay.width = video.videoWidth;
   overlay.height = video.videoHeight;
   overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
+  drawTiltHorizon(overlayCtx, overlay.width, overlay.height);
 
   // A box's own label sits above it when there's room, but with several
   // vehicles close together near the top of the frame (a common case —
