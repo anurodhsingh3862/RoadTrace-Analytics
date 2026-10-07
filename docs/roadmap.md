@@ -652,6 +652,32 @@ than as one large change.
     in both portrait orientations (upright vs. upside-down)** — the pure
     angle math is tested, but the real-device check is still open.
 
+- [x] `web/src/confidence.js` (new) — **a per-vehicle measurement-confidence
+  rating**, built entirely from signals already computed elsewhere on this
+  page (camera steadiness, tilt status, whether this specific speed used
+  geometric calibration vs. the size heuristic, and how many consecutive
+  samples the vehicle's track has accumulated) — nothing new is measured
+  just to produce this. The point is reporting honestly how much to trust a
+  given reading rather than presenting every number with the same confident
+  label regardless of how shaky its inputs were.
+  - Scored conservatively: an unsteady camera or a too-short tracklet (under
+    8 samples) floors the rating at "low" outright, since there's barely a
+    real measurement yet; otherwise it starts "high" and drops one level
+    per secondary issue (camera tilted, or using the heuristic scale
+    instead of geometric calibration). An "unknown" tilt reading (no
+    sensor, or landscape — see `tilt.js`) is NOT penalized, since
+    confidence should reflect what's actually known to be wrong, not what
+    couldn't be checked.
+  - Surfaced as a single HUD chip ("Measurement confidence: High/Medium/
+    Low") reporting the WORST level among currently-visible vehicles, not
+    an average — understating trust is the safe direction to be wrong in
+    for a measurement-confidence indicator.
+  - `AutoSpeedEstimator` gained a small `getSampleCount(trackId)` accessor
+    (speed.js) to expose the tracklet-length signal without duplicating
+    bookkeeping that already exists internally.
+  - 11 new tests (8 in `confidence.test.js`, 3 covering `getSampleCount` in
+    `speed.test.js`), 123/123 passing.
+
 ## Planned, in order
 1. **A road-level crash dataset** — the actual remaining prerequisite for
    `risk_context.py` to become a real risk model instead of "measured

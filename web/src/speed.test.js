@@ -149,6 +149,30 @@ test("AutoSpeedEstimator falls back to the heuristic for a pair where only one p
   assert.ok(Math.abs(speed - expectedMph) < 0.01, `expected the width heuristic since the pair isn't fully calibrated, got ${speed}`);
 });
 
+test("AutoSpeedEstimator getSampleCount reports 0 for an unknown track", () => {
+  const estimator = new AutoSpeedEstimator(4);
+  assert.equal(estimator.getSampleCount(999), 0);
+});
+
+test("AutoSpeedEstimator getSampleCount tracks how many samples have accumulated, capped at windowSize", () => {
+  const estimator = new AutoSpeedEstimator(4);
+  estimator.update(1, "car", 0, 0, 100, 0.0);
+  assert.equal(estimator.getSampleCount(1), 1);
+  estimator.update(1, "car", 10, 0, 100, 1.0);
+  estimator.update(1, "car", 20, 0, 100, 2.0);
+  assert.equal(estimator.getSampleCount(1), 3);
+  estimator.update(1, "car", 30, 0, 100, 3.0);
+  estimator.update(1, "car", 40, 0, 100, 4.0); // 5th sample, windowSize is 4
+  assert.equal(estimator.getSampleCount(1), 4);
+});
+
+test("AutoSpeedEstimator getSampleCount drops to 0 after a track is pruned", () => {
+  const estimator = new AutoSpeedEstimator(4);
+  estimator.update(1, "car", 0, 0, 100, 0.0);
+  estimator.prune(100, 30);
+  assert.equal(estimator.getSampleCount(1), 0);
+});
+
 test("AutoSpeedEstimator prune drops tracks not updated recently", () => {
   const estimator = new AutoSpeedEstimator(4);
   estimator.update(1, "car", 0, 0, 100, 0.0);

@@ -45,6 +45,9 @@
     .hud-speedlimit-chip { background: var(--rt-hud-panel); backdrop-filter: blur(10px); padding: 7px 14px; border-radius: 999px; font-size: 0.8rem; color: var(--rt-hud-line); display: flex; align-items: center; gap: 6px; white-space: nowrap; }
     .hud-speedlimit-chip strong { color: var(--rt-ink); }
     .hud-speedlimit-chip.tilt-warning { color: var(--rt-hud-bad, #e5484d); }
+    .hud-speedlimit-chip.confidence-high { color: var(--rt-hud-good, #2fae5a); }
+    .hud-speedlimit-chip.confidence-medium { color: #e8a53d; }
+    .hud-speedlimit-chip.confidence-low { color: var(--rt-hud-bad, #e5484d); }
     .hud-topbar .chip-row { margin: 0; gap: 6px; }
     .hud-topbar .rt-chip { background: var(--rt-hud-panel); backdrop-filter: blur(10px); border-color: transparent; color: var(--rt-hud-line); padding: 6px 11px; font-size: 0.78rem; }
     .hud-topbar .rt-chip.active { background: var(--rt-accent); color: var(--rt-accent-ink); }
@@ -113,6 +116,7 @@
       </div>
       <div class="hud-speedlimit-chip" id="hud-calibration-chip" data-i18n="hud_calibration_heuristic">Estimated from vehicle size</div>
       <div class="hud-speedlimit-chip" id="hud-tilt-chip" hidden></div>
+      <div class="hud-speedlimit-chip" id="hud-confidence-chip" hidden></div>
       <div class="chip-row" id="speed-units-overlay">
         <button class="rt-chip unit-chip" type="button" data-unit-group="speed" data-unit="mph">mph</button>
         <button class="rt-chip unit-chip" type="button" data-unit-group="speed" data-unit="kmh">km/h</button>
