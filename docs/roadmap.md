@@ -579,6 +579,19 @@ than as one large change.
   population-average vehicle size. 9 new tests (`calibration.js`'s own
   7 plus 2 covering the `metersPerPixelOverride` wiring in
   `speed.test.js`), 91/91 passing.
+  - **Performance fix, same day**: the line-vote step (`houghLaneLines`)
+    originally used a `Map` per slope bucket and recomputed `slope*y` on
+    every single pixel. Benchmarked against a busy/noisy synthetic frame
+    (lots of edges — gravel, foliage, other traffic, not just the two lane
+    lines) this cost 500-660ms of main-thread time per calibration attempt,
+    enough to visibly freeze the live camera view each time it retried.
+    Replaced the `Map`s with flat `Int32Array` vote accumulators (no
+    hashing/boxing) and hoisted the per-bucket `slope*y` term out of the
+    pixel loop into the row loop (it's constant across a row) — same
+    arithmetic, ~10x faster: the same worst-case benchmark now runs in
+    ~55ms, and a more realistic road-texture frame in ~10-40ms. All 91
+    tests still pass unchanged; this was a pure performance fix, not a
+    behavior change.
 
 ## Planned, in order
 1. **A road-level crash dataset** — the actual remaining prerequisite for

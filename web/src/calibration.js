@@ -89,22 +89,44 @@ export function sobelMagnitude(gray, width, height) {
  */
 function houghLaneLines(mag, width, height, edgeThreshold, scanFraction = 0.6) {
   const yStart = Math.floor(height * (1 - scanFraction));
-  // accumulator[bucket] -> Map<bIntBin, votes>, kept sparse since b's range
-  // is wide but any one frame's edges only populate a small part of it.
-  const leftAcc = Array.from({ length: SLOPE_BUCKETS }, () => new Map());
-  const rightAcc = Array.from({ length: SLOPE_BUCKETS }, () => new Map());
   const slopeStep = (SLOPE_MAX - SLOPE_MIN) / SLOPE_BUCKETS;
 
+  // Flat typed-array accumulators instead of one Map per bucket. This isn't
+  // just a constant-factor cleanup: profiling against a busy/noisy frame (a
+  // realistic worst case — lots of edge pixels, e.g. gravel, foliage, other
+  // traffic, not just the two lane lines) showed the Map-based version
+  // costing several hundred ms of main-thread time per attempt, enough to
+  // visibly freeze the live camera view each time calibration retries. A
+  // plain integer-indexed Int32Array vote per (slope bucket, intercept) pair
+  // avoids hashing/boxing entirely and is dramatically faster for the same
+  // math. `bOffset` shifts b (which can go negative) into a valid index.
+  const bOffset = Math.ceil(SLOPE_MAX * height) + 1;
+  const bRangeSize = width + 2 * bOffset;
+  const leftAcc = new Int32Array(SLOPE_BUCKETS * bRangeSize);
+  const rightAcc = new Int32Array(SLOPE_BUCKETS * bRangeSize);
+
+  // Per-row scratch for slopeMag*y at every bucket: this value is the same
+  // for every pixel in a row, so computing it once per row (rather than
+  // once per pixel, as a naive port of the Map version would) cuts the
+  // dominant multiply cost by a factor of the row width.
+  const slopeMagTimesY = new Float64Array(SLOPE_BUCKETS);
+
   for (let y = yStart; y < height; y++) {
+    for (let bucket = 0; bucket < SLOPE_BUCKETS; bucket++) {
+      slopeMagTimesY[bucket] = (SLOPE_MIN + bucket * slopeStep) * y;
+    }
+    const rowOffset = y * width;
     for (let x = 0; x < width; x++) {
-      if (mag[y * width + x] < edgeThreshold) continue;
+      if (mag[rowOffset + x] < edgeThreshold) continue;
       for (let bucket = 0; bucket < SLOPE_BUCKETS; bucket++) {
-        const slopeMag = SLOPE_MIN + bucket * slopeStep;
-        for (const [acc, m] of [[leftAcc, -slopeMag], [rightAcc, slopeMag]]) {
-          const b = Math.round(x - m * y);
-          const map = acc[bucket];
-          map.set(b, (map.get(b) || 0) + 1);
-        }
+        const my = slopeMagTimesY[bucket];
+        const base = bucket * bRangeSize;
+        // Left line: m = -slopeMag, so b = x - m*y = x + slopeMag*y.
+        const bLeft = Math.round(x + my) + bOffset;
+        if (bLeft >= 0 && bLeft < bRangeSize) leftAcc[base + bLeft]++;
+        // Right line: m = +slopeMag, so b = x - slopeMag*y.
+        const bRight = Math.round(x - my) + bOffset;
+        if (bRight >= 0 && bRight < bRangeSize) rightAcc[base + bRight]++;
       }
     }
   }
@@ -113,8 +135,10 @@ function houghLaneLines(mag, width, height, edgeThreshold, scanFraction = 0.6) {
     let best = null;
     for (let bucket = 0; bucket < SLOPE_BUCKETS; bucket++) {
       const m = signFactor * (SLOPE_MIN + bucket * slopeStep);
-      for (const [b, votes] of acc[bucket]) {
-        if (!best || votes > best.votes) best = { m, b, votes };
+      const base = bucket * bRangeSize;
+      for (let i = 0; i < bRangeSize; i++) {
+        const votes = acc[base + i];
+        if (votes > 0 && (!best || votes > best.votes)) best = { m, b: i - bOffset, votes };
       }
     }
     return best && best.votes >= MIN_VOTES ? best : null;
