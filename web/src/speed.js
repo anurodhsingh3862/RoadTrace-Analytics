@@ -162,6 +162,18 @@ export class AutoSpeedEstimator {
   }
 
   /**
+   * How many recent samples this track has accumulated (bounded by
+   * windowSize) — i.e. how much history its current speed estimate is
+   * actually based on. Used by confidence.js to flag a vehicle that's only
+   * just entered frame, whose estimate hasn't had a full smoothing window
+   * to average out detection jitter yet.
+   * @returns {number} 0 for an unknown or already-pruned track.
+   */
+  getSampleCount(trackId) {
+    return this.history.get(trackId)?.length ?? 0;
+  }
+
+  /**
    * Drops tracks not updated within maxAgeS, so a long-running session
    * doesn't accumulate history for every vehicle that's ever passed by.
    */

@@ -52,6 +52,7 @@ import { ShakeDetector } from "./motion.js";
 import { detectLaneGeometry, PerspectiveCalibration } from "./calibration.js";
 import { isWithinScoringRoi } from "./roi.js";
 import { classifyTilt } from "./tilt.js";
+import { classifyMeasurementConfidence } from "./confidence.js";
 import { MODEL_INPUT_SIZE } from "./postprocess.js";
 import { fetchRoadSafetyContext, getNearbySpeedLimit, cToF, kmhToMph, mmToIn, metersToMiles, compassDirection, aqiCategory } from "./context.js";
 import {
@@ -344,6 +345,30 @@ function renderTiltStatus() {
 function handleDeviceOrientation(event) {
   latestTilt = classifyTilt(event.beta, event.gamma, getScreenAngleDeg());
   renderTiltStatus();
+}
+
+// --- Measurement confidence (see confidence.js) -------------------------
+const confidenceChipEl = document.getElementById("hud-confidence-chip");
+const CONFIDENCE_LEVEL_RANK = { low: 0, medium: 1, high: 2 };
+
+// Reports the WORST confidence level among currently-visible vehicles, not
+// an average — for a measurement-trust indicator, understating how much to
+// trust the numbers on screen is the safe direction to be wrong in, and one
+// badly-tracked vehicle shouldn't be hidden behind several good ones.
+function renderConfidenceChip(confidenceByTrackId) {
+  if (!confidenceChipEl) return;
+  if (confidenceByTrackId.size === 0) {
+    confidenceChipEl.hidden = true;
+    return;
+  }
+  let worstLevel = "high";
+  for (const { level } of confidenceByTrackId.values()) {
+    if (CONFIDENCE_LEVEL_RANK[level] < CONFIDENCE_LEVEL_RANK[worstLevel]) worstLevel = level;
+  }
+  confidenceChipEl.hidden = false;
+  confidenceChipEl.classList.remove("confidence-high", "confidence-medium", "confidence-low");
+  confidenceChipEl.classList.add(`confidence-${worstLevel}`);
+  confidenceChipEl.textContent = t(`hud_confidence_${worstLevel}`);
 }
 
 // Same permission pattern as startMotionGuard above — DeviceOrientationEvent
@@ -712,6 +737,11 @@ async function frameLoop(mediaTimeS) {
   // motion unreliable, not just the ones that look wrong.
   const steady = shakeDetector.isSteady();
   const speedByTrackId = new Map();
+  // Per-vehicle measurement confidence (confidence.js), built from signals
+  // already computed elsewhere on this page — see that module for what
+  // feeds into it and why. Only set for vehicles that actually got a speed
+  // this frame, since there's nothing to rate confidence in otherwise.
+  const confidenceByTrackId = new Map();
   if (steady) {
     for (const det of tracked) {
       const boxWidthPx = det.x2 - det.x1;
@@ -744,7 +774,18 @@ async function frameLoop(mediaTimeS) {
         boxHeightPx,
         metersPerPixelOverride
       );
-      if (speed != null) speedByTrackId.set(det.trackId, speed);
+      if (speed != null) {
+        speedByTrackId.set(det.trackId, speed);
+        confidenceByTrackId.set(
+          det.trackId,
+          classifyMeasurementConfidence({
+            steady,
+            tiltStatus: latestTilt.status,
+            usedGeometricCalibration: metersPerPixelOverride != null,
+            trackletFrames: speedEstimator.getSampleCount(det.trackId),
+          })
+        );
+      }
     }
   }
   speedEstimator.prune(timestampS);
@@ -754,6 +795,7 @@ async function frameLoop(mediaTimeS) {
   renderVehicleList(tracked, speedByTrackId);
   renderFlowAndConfidence(tracked, raw, timestampS);
   renderAvgSpeedStat(speedByTrackId);
+  renderConfidenceChip(confidenceByTrackId);
   lastTracked = tracked;
   lastSpeedByTrackId = speedByTrackId;
   scheduleNextFrame();
