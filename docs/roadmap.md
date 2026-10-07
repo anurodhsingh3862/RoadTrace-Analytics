@@ -624,6 +624,34 @@ than as one large change.
     about why tap-to-calibrate was taken out).
   - 6 new tests (`roi.test.js`), 97/97 passing.
 
+- [x] `web/src/tilt.js` (new) — **camera-tilt guidance**, the highest-value
+  item from that same review: catches the single worst real-world accuracy
+  problem (a badly-angled phone) before any math has to compensate for it,
+  using the phone's own orientation sensor (`DeviceOrientationEvent`) —
+  zero cost, no new permission beyond what the shake-detection feature
+  already asks for.
+  - A HUD chip reads "Camera level" or "Camera tilted ~N° — hold more
+    upright", and a virtual-horizon line is drawn over the camera view
+    (rotates to counter the phone's left-right bank, like a bubble level or
+    an aircraft attitude indicator), with a fixed crosshair at center for
+    reference.
+  - **Honestly scoped, same spirit as `calibration.js`**: only evaluates
+    tilt in PORTRAIT orientation — landscape swaps which raw sensor axis
+    means pitch vs. roll in a way that needs verification against a real
+    device this project can't do from a cloud dev sandbox, so landscape
+    reports "unknown" and shows nothing rather than risk backwards
+    guidance. Pitch (forward/back tilt) is reported as a magnitude only,
+    not a signed "tilt up" vs. "tilt down" direction, for the same
+    real-device-verification reason. Roll (left-right bank) doesn't have
+    that ambiguity and IS signed, which is what drives the horizon-line
+    overlay's rotation direction.
+  - Fails open exactly like the shake detector: no orientation sensor, or
+    permission denied, and the chip simply never appears — nothing breaks.
+  - 15 new tests (`tilt.test.js`), 112/112 passing. **Not yet
+    field-verified against a real phone's actual sensor sign conventions
+    in both portrait orientations (upright vs. upside-down)** — the pure
+    angle math is tested, but the real-device check is still open.
+
 ## Planned, in order
 1. **A road-level crash dataset** — the actual remaining prerequisite for
    `risk_context.py` to become a real risk model instead of "measured
